@@ -373,6 +373,9 @@ public final class NewProxy {
                                           InvocationHandler handler,
                                           Class<?>... interfaces) {
         Objects.requireNonNull(handler);
+        if (interfaces == null) {
+            throw new NullPointerException("interfaces is null");
+        }
         if (interfaces.length == 0) {
             throw new IllegalArgumentException("interfaces.length == 0");
         }
@@ -392,12 +395,14 @@ public final class NewProxy {
                 checkNewProxyPermission(Reflection.getCallerClass(), generatedProxyClass);
             }
             Constructor<?> constructor = generatedProxyClass.getConstructor(InvocationHandler.class);
+            // Access control is required whenever the constructor is public or not. Especially when specified
+            // interfaces contain non-public interfaces, the constructor is not accessible while the constructor's
+            // modifier is public. It's strange.
+            // Maybe that is a difference between Proxy and NewProxy.
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                 constructor.setAccessible(true);
                 return null;
             });
-            // 这里需要放开构造方法的访问权限, 有可能无法访问. 尤其是当接口包含 non-public 的接口时, 尽管构造方法是 public 的, 但是无法访问
-            // 这可能是由于 Proxy 是官方内置的吧, 做了其他校验或者设置之类的.
             return constructor.newInstance(handler);
         } catch (IllegalAccessException | InstantiationException | NoSuchMethodException e) {
             throw new InternalError(e.toString(), e);
@@ -477,6 +482,9 @@ public final class NewProxy {
     @SuppressWarnings(value = {"DuplicatedCode"})
     public static Class<?> getProxyClass(ClassLoader classLoader,
                                          Class<?>... interfaces) {
+        if (interfaces == null) {
+            throw new NullPointerException("interfaces is null");
+        }
         if (interfaces.length == 0) {
             throw new IllegalArgumentException("interfaces.length == 0");
         }
@@ -786,7 +794,7 @@ public final class NewProxy {
 
             /*
              * Record the package of a non-public proxy interface so that the
-             * proxy class will be defined in the same package.  Verify that
+             * proxy class will be defined in the same package. Verify that
              * all non-public proxy interfaces are in the same package.
              */
             for (Class<?> aClass : interfaces) {

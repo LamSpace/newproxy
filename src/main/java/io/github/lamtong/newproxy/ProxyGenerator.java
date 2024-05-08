@@ -20,6 +20,8 @@ import com.sun.org.apache.bcel.internal.Const;
 import com.sun.org.apache.bcel.internal.classfile.*;
 import com.sun.org.apache.bcel.internal.generic.*;
 
+import java.io.File;
+import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -124,6 +126,21 @@ import static io.github.lamtong.newproxy.Constants.*;
  */
 public final class ProxyGenerator {
 
+    private static boolean DUMP = false;
+
+    private static String DEFAULT_DIR = "newproxy";
+
+    static {
+        String dump = System.getProperty("io.github.lamtong.newproxy.dump");
+        if (dump != null && dump.equalsIgnoreCase("true")) {
+            DUMP = true;
+        }
+        String dir = System.getProperty("io.github.lamtong.newproxy.dir");
+        if (dir != null && !dir.isEmpty()) {
+            DEFAULT_DIR = dir;
+        }
+    }
+
     /**
      * proxy class name hold in ThreadLocal
      */
@@ -145,6 +162,7 @@ public final class ProxyGenerator {
      * @throws RuntimeException if an exception occurs when creating a dynamic proxy class.
      */
     public static byte[] generate(String proxyClass, int accessFlag, Class<?>[] interfaces) {
+        System.out.println("Generating proxy class: " + proxyClass);
         proxyClassName.set(proxyClass);
         METHOD_CACHE.set(new LinkedHashMap<>());
         ClassGen classGen = new ClassGen(proxyClassName.get(), Object.class.getName(), "<generated>", accessFlag, extractNamesFromInterfaces(interfaces));
@@ -172,6 +190,13 @@ public final class ProxyGenerator {
         }
         JavaClass javaClass = classGen.getJavaClass();
         // can debug javaClass object here
+        if (DUMP) {
+            try {
+                javaClass.dump(DEFAULT_DIR + File.separator + proxyClass.substring(proxyClass.lastIndexOf('.') + 1) + ".class");
+            } catch (IOException e) {
+                throw new RuntimeException("exception when dumping class: " + proxyClass + ", message: " + e.getMessage());
+            }
+        }
         return javaClass.getBytes();
     }
 
@@ -344,6 +369,7 @@ public final class ProxyGenerator {
                 new StackMapEntry(handle121.getPosition() - handle108.getPosition() - 1 + 64, handle121.getPosition() - handle108.getPosition() - 1, new StackMapType[0], new StackMapType[]{new StackMapType(((byte) 7), constantPool.addClass(Class_CLASS_NOT_FOUND_EXCEPTION), constantPool.getConstantPool())}, constantPool.getConstantPool()),
                 new StackMapEntry(handle121.getPosition() - handle108.getPosition() - 1, handle121.getPosition() - handle108.getPosition() - 1, new StackMapType[0], new StackMapType[0], constantPool.getConstantPool())
         };
+        // fixme: how to figure out the second parameter below, passed like "STACK_MAP_TABLE.length()"
         methodGen.addCodeAttribute(new StackMap(constantPool.addUtf8(STACK_MAP_TABLE), STACK_MAP_TABLE.length(), entries, constantPool.getConstantPool()));
 
         methodGen.setMaxLocals();
@@ -571,6 +597,7 @@ public final class ProxyGenerator {
                     new StackMapEntry(handle_1.getPosition() + 64, handle_1.getPosition(), new StackMapType[0], new StackMapType[]{new StackMapType((byte) 7, constantPool.addClass(CLASS_THROWABLE), constantPool.getConstantPool())}, constantPool.getConstantPool()),
                     new StackMapEntry(handle_2.getPosition() - handle_1.getPosition() - 1 + 64, handle_2.getPosition() - handle_1.getPosition() - 1, new StackMapType[0], new StackMapType[]{new StackMapType((byte) 7, constantPool.addClass(CLASS_THROWABLE), constantPool.getConstantPool())}, constantPool.getConstantPool())
             };
+            // fixme: the magic number 10 is a magic number, and I don't know how to calculate it
             methodGen.addCodeAttribute(new StackMap(constantPool.addUtf8(STACK_MAP_TABLE), 10, entries, constantPool.getConstantPool()));
 
             methodGen.setMaxLocals();

@@ -19,7 +19,7 @@
 
     <groupId>io.github.lamtong</groupId>
     <artifactId>newproxy</artifactId>
-    <version>0.0.1.SNAPSHOT</version>
+    <version>0.0.1</version>
 
     <properties>
         <maven.compiler.source>8</maven.compiler.source>
@@ -59,6 +59,15 @@
             <organization>no-name</organization>
         </developer>
     </developers>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <version>5.9.2</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
 
     <profiles>
         <profile>

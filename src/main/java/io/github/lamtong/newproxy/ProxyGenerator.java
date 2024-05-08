@@ -162,7 +162,6 @@ public final class ProxyGenerator {
      * @throws RuntimeException if an exception occurs when creating a dynamic proxy class.
      */
     public static byte[] generate(String proxyClass, int accessFlag, Class<?>[] interfaces) {
-        System.out.println("Generating proxy class: " + proxyClass);
         proxyClassName.set(proxyClass);
         METHOD_CACHE.set(new LinkedHashMap<>());
         ClassGen classGen = new ClassGen(proxyClassName.get(), Object.class.getName(), "<generated>", accessFlag, extractNamesFromInterfaces(interfaces));
@@ -170,6 +169,9 @@ public final class ProxyGenerator {
             ConstantPoolGen constantPool = classGen.getConstantPool();
             classGen.setMinor(Const.MINOR_1_8);
             classGen.setMajor(Const.MAJOR_1_8);
+
+            // Add @Proxied to proxy class
+            classGen.addAnnotationEntry(new AnnotationEntryGen(new ObjectType(Proxied.class.getName()), Collections.emptyList(), true, constantPool));
 
             // generates static variables for proxy class
             generateStaticVariables(classGen, constantPool, interfaces);

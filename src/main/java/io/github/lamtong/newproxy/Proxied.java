@@ -16,6 +16,8 @@
 
 package io.github.lamtong.newproxy;
 
+import java.lang.annotation.*;
+
 /**
  * An interface to indicate whether a specified object is a proxy instance or not.<br/><br/>
  *
@@ -33,6 +35,8 @@ package io.github.lamtong.newproxy;
  * @see NewProxy#isProxyClass(Class)
  * @since 0.0.1
  */
-public interface Proxied {
+@Retention(value = RetentionPolicy.RUNTIME)
+@Documented
+@Target(value = {ElementType.TYPE})
+public @interface Proxied {
 }
-

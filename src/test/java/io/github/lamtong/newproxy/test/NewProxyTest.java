@@ -28,6 +28,9 @@ import org.junit.jupiter.api.Test;
 import java.lang.reflect.*;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -50,7 +53,29 @@ public class NewProxyTest {
 
     @BeforeAll
     public static void setUp() {
-        fooService = () -> logger.log(Level.INFO, "FooServiceImpl invoked...");
+        fooService = new FooService() {
+
+            @Override
+            public boolean equals(Object obj) {
+                return this == obj;
+            }
+
+            @Override
+            public int hashCode() {
+                return super.hashCode();
+            }
+
+            @Override
+            public String toString() {
+                return getClass().getName() + "@" + Integer.toHexString(hashCode());
+            }
+
+            @Override
+            public void foo() {
+                logger.log(Level.INFO, "FooServiceImpl invoked...");
+            }
+
+        };
         barService = () -> logger.log(Level.INFO, "BarServiceImpl invoked...");
         innerService = () -> "InnerServiceImpl, whose interface is not public.";
         helloService = () -> logger.log(Level.INFO, "Sub InnerService01Impl invoked...");
@@ -302,6 +327,34 @@ public class NewProxyTest {
         });
         FooService fooService = (FooService) NewProxy.newProxyInstance(FooService.class.getClassLoader(), handler, FooService.class);
         fooService.foo();
+    }
+
+    /**
+     * Case: try to generate multiple proxy instances in multiple threads with the same interface.
+     */
+    @Test
+    public void testForMultipleThreadsGeneration() {
+        InvocationHandler handler = (proxy, method, args) -> method.invoke(fooService, args);
+        int count = 30;
+        CountDownLatch latch = new CountDownLatch(30);
+        ExecutorService pool = Executors.newCachedThreadPool();
+        for (int i = 0; i < count; i++) {
+            pool.execute(() -> {
+                FooService fooService = (FooService) NewProxy.newProxyInstance(FooService.class.getClassLoader(), handler, FooService.class);
+                if (logger.isLoggable(Level.INFO)) {
+                    logger.log(Level.INFO, "Thread name: " + Thread.currentThread().getName() + ", class name: " + fooService.getClass().getName() + ", object: " + fooService);
+                }
+                latch.countDown();
+            });
+        }
+        try {
+            // wait until all logs are printed.
+            latch.await();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        } finally {
+            pool.shutdown();
+        }
     }
 
 }

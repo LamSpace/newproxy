@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-package io.github.lamtong.newproxy.interfaces;
+package io.github.lamspace.newproxy.test;
 
-public interface FooService {
+interface HelloService {
 
-    void foo();
+    void hello();
 
 }

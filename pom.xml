@@ -17,7 +17,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.github.lamtong</groupId>
+    <groupId>io.github.lamspace</groupId>
     <artifactId>newproxy</artifactId>
     <version>0.0.1</version>
 
@@ -31,7 +31,7 @@
     <description>
         NewProxy is a Java proxy framework that provides a simple way to create dynamic proxy objects.
     </description>
-    <url>https://github.com/LamTong/newproxy</url>
+    <url>https://github.com/LamSpace/newproxy</url>
 
     <licenses>
         <license>
@@ -42,9 +42,9 @@
 
     <scm>
         <tag>master</tag>
-        <url>git@github.com:LamTong/newproxy.git</url>
-        <connection>scm:git:git@github.com:LamTong/newproxy.git</connection>
-        <developerConnection>scm:git:git@github.com:LamTong/newproxy.git</developerConnection>
+        <url>git@github.com:LamSpace/newproxy.git</url>
+        <connection>scm:git:git@github.com:LamSpace/newproxy.git</connection>
+        <developerConnection>scm:git:git@github.com:LamSpace/newproxy.git</developerConnection>
     </scm>
 
     <developers>

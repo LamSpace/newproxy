@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-package io.github.lamtong.newproxy.test;
+package io.github.lamspace.newproxy.interfaces;
 
-interface InnerService {
+public interface BarService {
 
-    String inner();
+    void bar();
 
 }

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.github.lamtong.newproxy;
+package io.github.lamspace.newproxy;
 
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;

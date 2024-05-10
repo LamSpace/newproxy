@@ -1,12 +1,12 @@
 # NewProxy: New Proxy for Java
 
-![Gitter](https://img.shields.io/gitter/room/lamtong/newproxy)
+![Gitter](https://img.shields.io/gitter/room/lamspace/newproxy)
 [![License](https://img.shields.io/badge/license-Apache%202-4EB1BA.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
 ![Static Badge](https://img.shields.io/badge/NewProxy-New%20Proxy%20for%20Java-color=red)
-![GitHub Repo stars](https://img.shields.io/github/stars/lamtong/newproxy)
-![GitHub forks](https://img.shields.io/github/forks/lamtong/newproxy)
-![GitHub Release](https://img.shields.io/github/v/release/lamtong/newproxy)
-![Maven Central Version](https://img.shields.io/maven-central/v/io.github.lamtong/newproxy)
+![GitHub Repo stars](https://img.shields.io/github/stars/lamspace/newproxy)
+![GitHub forks](https://img.shields.io/github/forks/lamspace/newproxy)
+![GitHub Release](https://img.shields.io/github/v/release/lamspace/newproxy)
+![Maven Central Version](https://img.shields.io/maven-central/v/io.github.lamspace/newproxy)
 
 ---
 
@@ -43,7 +43,7 @@ you need to do the following:
 ```xml
 
 <dependency>
-    <groupId>io.github.lamtong</groupId>
+    <groupId>io.github.lamspace</groupId>
     <artifactId>newproxy</artifactId>
     <version>${version}</version>
 </dependency>
@@ -52,7 +52,7 @@ you need to do the following:
 ### Step2. Generate dynamic proxy class
 
 ```java
-import io.github.lamtong.newproxy.NewProxy;
+import io.github.lamspace.newproxy.NewProxy;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;

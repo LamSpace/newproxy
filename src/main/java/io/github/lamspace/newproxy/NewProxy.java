@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.github.lamtong.newproxy;
+package io.github.lamspace.newproxy;
 
 import sun.misc.VM;
 import sun.reflect.Reflection;

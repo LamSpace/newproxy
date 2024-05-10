@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-package io.github.lamtong.newproxy.test;
+package io.github.lamspace.newproxy.test;
 
-interface HelloService {
+interface InnerService {
 
-    void hello();
+    String inner();
 
 }

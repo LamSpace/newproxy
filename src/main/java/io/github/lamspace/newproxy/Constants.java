@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.github.lamtong.newproxy;
+package io.github.lamspace.newproxy;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -132,6 +132,21 @@ public final class Constants {
      * name of static method for all wrapper class for primitive types
      */
     public static final String METHOD_VALUE_OF = "valueOf";
+
+    /**
+     * flag to indicate whether dump class file or not
+     */
+    public static final String STRING_DUMP_FLAG = "newproxy.dump.flag";
+
+    /**
+     * directory to dump class file
+     */
+    public static final String STRING_DUMP_DIR = "newproxy.dump.dir";
+
+    /**
+     * default directory to dump class file
+     */
+    public static final String STRING_DUMP_DIR_DEFAULT = "newproxy";
 
 }
 

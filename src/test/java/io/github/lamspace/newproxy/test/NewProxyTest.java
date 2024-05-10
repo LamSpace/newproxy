@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-package io.github.lamtong.newproxy.test;
+package io.github.lamspace.newproxy.test;
 
-import io.github.lamtong.newproxy.NewProxy;
-import io.github.lamtong.newproxy.interfaces.BarService;
-import io.github.lamtong.newproxy.interfaces.FooService;
-import io.github.lamtong.newproxy.interfaces.JustClass;
+import io.github.lamspace.newproxy.NewProxy;
+import io.github.lamspace.newproxy.interfaces.BarService;
+import io.github.lamspace.newproxy.interfaces.FooService;
+import io.github.lamspace.newproxy.interfaces.JustClass;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;

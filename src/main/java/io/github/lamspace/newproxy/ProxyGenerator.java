@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.github.lamtong.newproxy;
+package io.github.lamspace.newproxy;
 
 import com.sun.org.apache.bcel.internal.Const;
 import com.sun.org.apache.bcel.internal.classfile.*;
@@ -28,7 +28,7 @@ import java.lang.reflect.Parameter;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.util.*;
 
-import static io.github.lamtong.newproxy.Constants.*;
+import static io.github.lamspace.newproxy.Constants.*;
 
 
 /**
@@ -126,21 +126,6 @@ import static io.github.lamtong.newproxy.Constants.*;
  */
 public final class ProxyGenerator {
 
-    private static boolean DUMP = false;
-
-    private static String DEFAULT_DIR = "newproxy";
-
-    static {
-        String dump = System.getProperty("io.github.lamtong.newproxy.dump");
-        if (dump != null && dump.equalsIgnoreCase("true")) {
-            DUMP = true;
-        }
-        String dir = System.getProperty("io.github.lamtong.newproxy.dir");
-        if (dir != null && !dir.isEmpty()) {
-            DEFAULT_DIR = dir;
-        }
-    }
-
     /**
      * proxy class name hold in ThreadLocal
      */
@@ -192,9 +177,19 @@ public final class ProxyGenerator {
         }
         JavaClass javaClass = classGen.getJavaClass();
         // can debug javaClass object here
-        if (DUMP) {
+        boolean dumpFlag = false;
+        String dump = System.getProperty(STRING_DUMP_FLAG);
+        if (dump != null && dump.equalsIgnoreCase("true")) {
+            dumpFlag = true;
+        }
+        if (dumpFlag) {
+            String defaultDir = STRING_DUMP_DIR_DEFAULT;
+            String dir = System.getProperty(STRING_DUMP_DIR);
+            if (dir != null && !dir.isEmpty()) {
+                defaultDir = dir;
+            }
             try {
-                javaClass.dump(DEFAULT_DIR + File.separator + proxyClass.substring(proxyClass.lastIndexOf('.') + 1) + ".class");
+                javaClass.dump(defaultDir + File.separator + proxyClass.substring(proxyClass.lastIndexOf('.') + 1) + ".class");
             } catch (IOException e) {
                 throw new RuntimeException("exception when dumping class: " + proxyClass + ", message: " + e.getMessage());
             }

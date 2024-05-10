@@ -14,10 +14,12 @@
  * limitations under the License.
  */
 
-package io.github.lamtong.newproxy.interfaces;
+package io.github.lamspace.newproxy.interfaces;
 
-public interface BarService {
+public class JustClass {
 
-    void bar();
+    public void just() {
+        System.out.println("Just Class!");
+    }
 
 }

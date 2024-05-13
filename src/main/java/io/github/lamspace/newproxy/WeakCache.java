@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2024 the original author, Lam Tong
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -40,9 +40,9 @@ import java.util.function.Supplier;
  * @param <P> type of parameters
  * @param <V> type of values
  * @author copied from {@link java.lang.reflect.WeakCache} cause that one is not available from outside packages.
- * @version 0.0.1
+ * @version 1.0.0
  * @see java.lang.reflect.WeakCache
- * @since 0.0.1
+ * @since 1.0.0
  */
 final class WeakCache<K, P, V> {
 
@@ -63,7 +63,7 @@ final class WeakCache<K, P, V> {
      * @param subKeyFactory a function mapping a pair of {@code (key, parameter) -> sub-key}
      * @param valueFactory  a function mapping a pair of {@code (key, parameter) -> value}
      */
-    public WeakCache(BiFunction<K, P, ?> subKeyFactory, BiFunction<K, P, V> valueFactory) {
+    WeakCache(BiFunction<K, P, ?> subKeyFactory, BiFunction<K, P, V> valueFactory) {
         this.subKeyFactory = subKeyFactory;
         this.valueFactory = valueFactory;
     }

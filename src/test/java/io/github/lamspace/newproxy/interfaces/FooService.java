@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2024 the original author, Lam Tong
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,5 +19,11 @@ package io.github.lamspace.newproxy.interfaces;
 public interface FooService {
 
     void foo();
+
+    int add(int x, double y);
+
+    String concat(String x, String y);
+
+    String repeat(String x, int count, String message);
 
 }

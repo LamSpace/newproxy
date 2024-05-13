@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2024 the original author, Lam Tong
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,7 @@
 
 package io.github.lamspace.newproxy;
 
-import java.lang.reflect.InvocationHandler;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
 import java.lang.reflect.UndeclaredThrowableException;
 
@@ -24,16 +24,19 @@ import java.lang.reflect.UndeclaredThrowableException;
  * Constants used when create dynamic class and instances in {@link ProxyGenerator}.
  *
  * @author Lam Tong
- * @version 0.0.1
+ * @version 1.0.0
  * @see ProxyGenerator
- * @since 0.0.1
+ * @since 1.0.0
  */
 public final class Constants {
 
+    private Constants() {
+    }
+
     /**
-     * signature for {@link Method} type instance variable in String format
+     * signature for {@link MethodDecorator} type instance variable in String format
      */
-    public static final String SIGNATURE_METHOD = "Ljava/lang/reflect/Method;";
+    public static final String SIGNATURE_METHOD_DECORATOR = "Lio/github/lamspace/newproxy/MethodDecorator;";
 
     /**
      * signature for {@link Class} type instance variable in String format
@@ -41,9 +44,9 @@ public final class Constants {
     public static final String SIGNATURE_CLASS = "Ljava/lang/Class;";
 
     /**
-     * signature for {@link InvocationHandler} type instance variable in String format
+     * signature for {@link InvocationInterceptor} type instance variable in String format
      */
-    public static final String SIGNATURE_INVOCATION_HANDLER = "Ljava/lang/reflect/InvocationHandler;";
+    public static final String SIGNATURE_INVOCATION_INTERCEPTOR = "Lio/github/lamspace/newproxy/InvocationInterceptor;";
 
     /**
      * full-qualified class name for class {@link Object}
@@ -54,6 +57,11 @@ public final class Constants {
      * full-qualified class name for class {@link Class}
      */
     public static final String CLASS_CLASS = Class.class.getName();
+
+    /**
+     * full-qualified class name for class {@link MethodDecorator}
+     */
+    public static final String CLASS_METHOD_DECORATOR = MethodDecorator.class.getName();
 
     /**
      * full-qualified class name for class {@link NoSuchMethodError}
@@ -86,9 +94,11 @@ public final class Constants {
     public static final String CLASS_THROWABLE = Throwable.class.getName();
 
     /**
-     * method name for {@link Object#equals(Object)} in string format
+     * full-qualified class name for class {@link InvocationDispatcher}
+     */
+    public static final String CLASS_INVOCATION_DISPATCHER = InvocationDispatcher.class.getName();
 
-     /**
+    /**
      * method name for {@link Exception#getMessage()} in string format
      */
     public static final String METHOD_GET_MESSAGE = "getMessage";
@@ -104,9 +114,14 @@ public final class Constants {
     public static final String METHOD_CL_INIT = "<clinit>";
 
     /**
-     * method name for {@link InvocationHandler#invoke(Object, Method, Object[])} in string format
+     * method name for {@link java.lang.invoke.MethodHandle#invokeExact(Object...)} in string format
      */
-    public static final String METHOD_INVOKE = "invoke";
+    public static final String METHOD_INVOKE_EXACT = "invokeExact";
+
+    /**
+     * method name for {@link InvocationInterceptor#intercept(Object, MethodDecorator, Object[])} in string format
+     */
+    public static final String METHOD_INTERCEPT = "intercept";
 
     /**
      * method name for {@link Class#forName(String)} in string format
@@ -119,14 +134,9 @@ public final class Constants {
     public static final String METHOD_GET_METHOD = "getMethod";
 
     /**
-     * field name in generated dynamic proxy class which represents an {@link InvocationHandler} instance
+     * method name for {@link MethodDecorator#of(Method)} in string format
      */
-    public static final String FIELD_HANDLER = "handler";
-
-    /**
-     * {@code StackMapTable} when create dynamic class proxy which needs to process exception
-     */
-    public static final String STACK_MAP_TABLE = "StackMapTable";
+    public static final String METHOD_OF = "of";
 
     /**
      * name of static method for all wrapper class for primitive types
@@ -134,14 +144,104 @@ public final class Constants {
     public static final String METHOD_VALUE_OF = "valueOf";
 
     /**
+     * name of {@link Object#equals(Object)} method
+     */
+    public static final String METHOD_EQUALS = "equals";
+
+    /**
+     * name of {@link Object#hashCode()} method
+     */
+    public static final String METHOD_HASH_CODE = "hashCode";
+
+    /**
+     * name of {@link Object#toString()} method
+     */
+    public static final String METHOD_TO_STRING = "toString";
+
+    /**
+     * name of {@link java.lang.invoke.MethodType#methodType(Class) methodType} method
+     */
+    public static final String METHOD_METHOD_TYPE = "methodType";
+
+    /**
+     * name of {@link java.lang.invoke.MethodHandles.Lookup#findVirtual(Class, String, MethodType)} method
+     */
+    public static final String METHOD_FIND_VIRTUAL = "findVirtual";
+
+    /**
+     * name of {@link java.lang.invoke.MethodHandle#bindTo(Object)} method
+     */
+    public static final String METHOD_BIND_TO = "bindTo";
+
+    /**
+     * name of {@link Boolean#booleanValue()} method
+     */
+    public static final String METHOD_BOOLEAN_VALUE = "booleanValue";
+
+    /**
+     * name of {@link Byte#byteValue()} method
+     */
+    public static final String METHOD_BYTE_VALUE = "byteValue";
+
+    /**
+     * name of {@link Character#charValue()} method
+     */
+    public static final String METHOD_CHAR_VALUE = "charValue";
+
+    /**
+     * name of {@link Double#doubleValue()} method
+     */
+    public static final String METHOD_DOUBLE_VALUE = "doubleValue";
+
+    /**
+     * name of {@link Float#floatValue()} method
+     */
+    public static final String METHOD_FLOAT_VALUE = "floatValue";
+
+    /**
+     * name of {@link Integer#intValue()} method
+     */
+    public static final String METHOD_INT_VALUE = "intValue";
+
+    /**
+     * name of {@link Long#longValue()} method
+     */
+    public static final String METHOD_LONG_VALUE = "longValue";
+
+    /**
+     * name of {@link Short#shortValue()} method
+     */
+    public static final String METHOD_SHORT_VALUE = "shortValue";
+
+    /**
+     * name of {@link Method#getName()} method
+     */
+    public static final String METHOD_GET_NAME = "getName";
+
+    /**
+     * field name in generated dynamic proxy class which represents an {@link InvocationInterceptor} instance
+     */
+    public static final String FIELD_INTERCEPTOR = "interceptor";
+
+    /**
+     * static field name for all wrapper class for primitive types
+     */
+    public static final String FIELD_TYPE = "TYPE";
+
+    /**
+     * {@code StackMapTable} when create dynamic class proxy which needs to process exception
+     */
+    public static final String STACK_MAP_TABLE = "StackMapTable";
+
+    /**
      * flag to indicate whether dump class file or not
      */
-    public static final String STRING_DUMP_FLAG = "newproxy.dump.flag";
+    public static final String STRING_DUMP_FLAG = "io.github.lamspace.newproxy.dump.flag";
 
     /**
      * directory to dump class file
      */
-    public static final String STRING_DUMP_DIR = "newproxy.dump.dir";
+    public static final String STRING_DUMP_DIR = "io.github.lamspace.newproxy.dump.dir";
 
     /**
      * default directory to dump class file
@@ -149,4 +249,3 @@ public final class Constants {
     public static final String STRING_DUMP_DIR_DEFAULT = "newproxy";
 
 }
-

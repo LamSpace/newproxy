@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2024 the original author, Lam Tong
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +16,8 @@
 
 package io.github.lamspace.newproxy.test;
 
+import io.github.lamspace.newproxy.Constants;
+import io.github.lamspace.newproxy.InvocationInterceptor;
 import io.github.lamspace.newproxy.NewProxy;
 import io.github.lamspace.newproxy.interfaces.BarService;
 import io.github.lamspace.newproxy.interfaces.FooService;
@@ -25,7 +27,9 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.*;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Modifier;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.concurrent.CountDownLatch;
@@ -37,7 +41,7 @@ import java.util.logging.Logger;
 /**
  * {@link NewProxy} Test Class.
  *
- * @author Lam Tang
+ * @author Lam Tong
  */
 public class NewProxyTest {
 
@@ -75,6 +79,26 @@ public class NewProxyTest {
                 logger.log(Level.INFO, "FooServiceImpl invoked...");
             }
 
+            @Override
+            public int add(int x, double y) {
+                logger.log(Level.INFO, "add x and y");
+                return (int) (x + y);
+            }
+
+            @Override
+            public String concat(String x, String y) {
+                return x.concat(y);
+            }
+
+            @Override
+            public String repeat(String x, int count, String message) {
+                for (int i = 0; i < count; i++) {
+                    x = x.concat(x);
+                }
+                logger.log(Level.INFO, message);
+                return x;
+            }
+
         };
         barService = () -> logger.log(Level.INFO, "BarServiceImpl invoked...");
         innerService = () -> "InnerServiceImpl, whose interface is not public.";
@@ -88,14 +112,16 @@ public class NewProxyTest {
      */
     @Test
     public void testForSinglePlainInterface() {
-        InvocationHandler handler = (proxy, method, args) -> {
-            method.invoke(fooService, args);
-            return null;
+        System.setProperty(Constants.STRING_DUMP_FLAG, "true");
+        InvocationInterceptor interceptor = (proxy, method, args) -> {
+            String name = method.getMethod().getName();
+            logger.log(Level.INFO, "Method: " + name + " invoked");
+            return method.invoke(proxy, fooService, args);
         };
-        FooService proxy = (FooService) NewProxy.newProxyInstance(FooService.class.getClassLoader(), handler, FooService.class);
+        FooService proxy = (FooService) NewProxy.newProxyInstance(FooService.class.getClassLoader(), interceptor, FooService.class);
         proxy.foo();
         int modifiers = proxy.getClass().getModifiers();
-        // generated proxy class start with "public final" modifiers
+//         generated proxy class start with "public final" modifiers
         Assertions.assertTrue(Modifier.isPublic(modifiers), "Modifiers: not public");
         Assertions.assertTrue(Modifier.isFinal(modifiers), "Modifiers: not final");
         String className = proxy.getClass().getName(),
@@ -109,15 +135,17 @@ public class NewProxyTest {
      */
     @Test
     public void testForMultiplePlainInterfaces() {
-        InvocationHandler handler = (proxy, method, args) -> {
-            if (method.getDeclaringClass() == FooService.class) {
-                method.invoke(fooService, args);
-            } else if (method.getDeclaringClass() == BarService.class) {
-                method.invoke(barService, args);
+        InvocationInterceptor interceptor = (proxy, method, args) -> {
+            String name = method.getMethod().getName();
+            logger.log(Level.INFO, "Method: " + name + " invoked");
+            if (method.getMethod().getDeclaringClass() == FooService.class) {
+                return method.invoke(proxy, fooService, args);
+            } else if (method.getMethod().getDeclaringClass() == BarService.class) {
+                return method.invoke(proxy, barService, args);
             }
-            return null;
+            return method.invoke(proxy, null, args);
         };
-        Object o = NewProxy.newProxyInstance(FooService.class.getClassLoader(), handler, FooService.class, BarService.class);
+        Object o = NewProxy.newProxyInstance(FooService.class.getClassLoader(), interceptor, FooService.class, BarService.class);
         FooService foo = (FooService) o;
         foo.foo();
         BarService bar = (BarService) o;
@@ -137,12 +165,9 @@ public class NewProxyTest {
      */
     @Test
     public void testForRepeatedInterfaces() {
-        InvocationHandler handler = (proxy, method, args) -> {
-            method.invoke(fooService, args);
-            return null;
-        };
+        InvocationInterceptor interceptor = (proxy, method, args) -> method.invoke(proxy, fooService, args);
         Assertions.assertThrows(IllegalArgumentException.class, () -> {
-            Object o = NewProxy.newProxyInstance(FooService.class.getClassLoader(), handler, FooService.class, FooService.class);
+            Object o = NewProxy.newProxyInstance(FooService.class.getClassLoader(), interceptor, FooService.class, FooService.class);
             FooService foo = (FooService) o;
             foo.foo();
         }, "No exception for Repeated interfaces");
@@ -154,9 +179,9 @@ public class NewProxyTest {
      */
     @Test
     public void testForEmptyInterfaces() {
-        InvocationHandler handler = (proxy, method, args) -> null;
+        InvocationInterceptor interceptor = (proxy, method, args) -> null;
         Assertions.assertThrows(IllegalArgumentException.class, () -> {
-            Object o = NewProxy.newProxyInstance(FooService.class.getClassLoader(), handler);
+            Object o = NewProxy.newProxyInstance(FooService.class.getClassLoader(), interceptor);
             FooService foo = (FooService) o;
             foo.foo();
         }, "No Exception for Empty interfaces");
@@ -168,12 +193,9 @@ public class NewProxyTest {
      */
     @Test
     public void testForSingleClass() {
-        InvocationHandler handler = (proxy, method, args) -> {
-            method.invoke(fooService, args);
-            return null;
-        };
+        InvocationInterceptor interceptor = (proxy, method, args) -> method.invoke(proxy, fooService, args);
         Assertions.assertThrows(IllegalArgumentException.class, () -> {
-            Object o = NewProxy.newProxyInstance(FooService.class.getClassLoader(), handler, FooService.class, JustClass.class);
+            Object o = NewProxy.newProxyInstance(FooService.class.getClassLoader(), interceptor, FooService.class, JustClass.class);
             FooService foo = (FooService) o;
             foo.foo();
         }, "No Exception for Single Class");
@@ -185,12 +207,9 @@ public class NewProxyTest {
      */
     @Test
     public void testForNullInterfaceArray() {
-        InvocationHandler handler = (proxy, method, args) -> {
-            method.invoke(fooService, args);
-            return null;
-        };
+        InvocationInterceptor interceptor = (proxy, method, args) -> method.invoke(proxy, fooService, args);
         Assertions.assertThrows(NullPointerException.class, () -> {
-            Object o = NewProxy.newProxyInstance(FooService.class.getClassLoader(), handler, null);
+            Object o = NewProxy.newProxyInstance(FooService.class.getClassLoader(), interceptor, null);
             FooService foo = (FooService) o;
             foo.foo();
         }, "No Exception for Null Interface Array");
@@ -202,8 +221,8 @@ public class NewProxyTest {
      */
     @Test
     public void testForSingleInnerService() {
-        InvocationHandler handler = (proxy, method, args) -> method.invoke(innerService, args);
-        InnerService innerService = (InnerService) NewProxy.newProxyInstance(InnerService.class.getClassLoader(), handler, InnerService.class);
+        InvocationInterceptor interceptor = (proxy, method, args) -> method.invoke(proxy, innerService, args);
+        InnerService innerService = (InnerService) NewProxy.newProxyInstance(InnerService.class.getClassLoader(), interceptor, InnerService.class);
         if (logger.isLoggable(Level.INFO)) {
             logger.log(Level.INFO, "invoke InnerService.inner() -> " + innerService.inner());
         }
@@ -221,15 +240,15 @@ public class NewProxyTest {
      */
     @Test
     public void testForMultiPleInnerService() {
-        InvocationHandler handler = (proxy, method, args) -> {
-            if (method.getDeclaringClass() == HelloService.class) {
-                method.invoke(helloService, args);
-            } else if (method.getDeclaringClass() == InnerService.class) {
-                method.invoke(innerService, args);
+        InvocationInterceptor interceptor = (proxy, method, args) -> {
+            if (method.getMethod().getDeclaringClass() == HelloService.class) {
+                return method.invoke(proxy, helloService, args);
+            } else if (method.getMethod().getDeclaringClass() == InnerService.class) {
+                return method.invoke(proxy, innerService, args);
             }
             return null;
         };
-        Object o = NewProxy.newProxyInstance(InnerService.class.getClassLoader(), handler, HelloService.class, InnerService.class);
+        Object o = NewProxy.newProxyInstance(InnerService.class.getClassLoader(), interceptor, HelloService.class, InnerService.class);
         HelloService helloService = (HelloService) o;
         helloService.hello();
         InnerService innerService = (InnerService) o;
@@ -273,13 +292,13 @@ public class NewProxyTest {
         Class<?> proxyClass = NewProxy.getProxyClass(FooService.class.getClassLoader(), FooService.class);
         Assertions.assertTrue(NewProxy.isProxyClass(proxyClass));
         try {
-            Constructor<?> constructor = proxyClass.getConstructor(InvocationHandler.class);
+            Constructor<?> constructor = proxyClass.getConstructor(InvocationInterceptor.class);
             // Be aware that whether the modifier of constructor is public or not, it will be accessible always.
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                 constructor.setAccessible(true);
                 return null;
             });
-            Object o = constructor.newInstance((InvocationHandler) (proxy, method, args) -> null);
+            Object o = constructor.newInstance((InvocationInterceptor) (proxy, method, args) -> null);
             Assertions.assertTrue(NewProxy.isProxyInstance(o));
         } catch (NoSuchMethodException | InvocationTargetException | InstantiationException |
                  IllegalAccessException e) {
@@ -292,22 +311,21 @@ public class NewProxyTest {
      */
     @Test
     public void testForAcquireInvocationHandlerInstance() {
-        InvocationHandler handler = (proxy, method, args) -> {
+        InvocationInterceptor interceptor = (proxy, method, args) -> {
             if (logger.isLoggable(Level.INFO)) {
-                logger.log(Level.INFO, "Method name: " + method.getName());
+                logger.log(Level.INFO, "Method name: " + method.getMethod().getName());
             }
-            method.invoke(fooService, args);
-            return null;
+            return method.invoke(proxy, fooService, args);
         };
-        FooService fooService = (FooService) NewProxy.newProxyInstance(FooService.class.getClassLoader(), handler, FooService.class);
-        InvocationHandler invocationHandler;
+        FooService fooService = (FooService) NewProxy.newProxyInstance(FooService.class.getClassLoader(), interceptor, FooService.class);
+        InvocationInterceptor invocationInterceptor;
         try {
-            invocationHandler = NewProxy.getInvocationHandler(fooService);
+            invocationInterceptor = NewProxy.getInvocationHandler(fooService);
         } catch (NoSuchFieldException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
-        Assertions.assertNotNull(invocationHandler);
-        Assertions.assertEquals(invocationHandler, handler);
+        Assertions.assertNotNull(invocationInterceptor);
+        Assertions.assertEquals(invocationInterceptor, interceptor);
     }
 
     /**
@@ -316,16 +334,14 @@ public class NewProxyTest {
     @Test
     @Disabled
     public void testForDumpDynamicProxyClassViaSystemProperties() {
-        System.setProperty("io.github.lamtong.newproxy.dump", "true");
-//        System.setProperty("io.github.lamtong.newproxy.dir", "target" + File.separator + "newproxy");
-        InvocationHandler handler = ((proxy, method, args) -> {
+        System.setProperty(Constants.STRING_DUMP_FLAG, "true");
+        InvocationInterceptor interceptor = ((proxy, method, args) -> {
             if (logger.isLoggable(Level.INFO)) {
-                logger.log(Level.INFO, "Method name: " + method.getName());
+                logger.log(Level.INFO, "Method name: " + method.getMethod().getName());
             }
-            method.invoke(fooService, args);
-            return null;
+            return method.invoke(proxy, fooService, args);
         });
-        FooService fooService = (FooService) NewProxy.newProxyInstance(FooService.class.getClassLoader(), handler, FooService.class);
+        FooService fooService = (FooService) NewProxy.newProxyInstance(FooService.class.getClassLoader(), interceptor, FooService.class);
         fooService.foo();
     }
 
@@ -334,13 +350,13 @@ public class NewProxyTest {
      */
     @Test
     public void testForMultipleThreadsGeneration() {
-        InvocationHandler handler = (proxy, method, args) -> method.invoke(fooService, args);
+        InvocationInterceptor interceptor = (proxy, method, args) -> method.invoke(proxy, fooService, args);
         int count = 30;
         CountDownLatch latch = new CountDownLatch(30);
         ExecutorService pool = Executors.newCachedThreadPool();
         for (int i = 0; i < count; i++) {
             pool.execute(() -> {
-                FooService fooService = (FooService) NewProxy.newProxyInstance(FooService.class.getClassLoader(), handler, FooService.class);
+                FooService fooService = (FooService) NewProxy.newProxyInstance(FooService.class.getClassLoader(), interceptor, FooService.class);
                 if (logger.isLoggable(Level.INFO)) {
                     logger.log(Level.INFO, "Thread name: " + Thread.currentThread().getName() + ", class name: " + fooService.getClass().getName() + ", object: " + fooService);
                 }

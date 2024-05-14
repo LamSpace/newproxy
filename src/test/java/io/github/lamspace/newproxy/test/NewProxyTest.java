@@ -192,6 +192,7 @@ public class NewProxyTest {
      * expect to throw an {@link IllegalArgumentException}.
      */
     @Test
+    @Disabled
     public void testForSingleClass() {
         InvocationInterceptor interceptor = (proxy, method, args) -> method.invoke(proxy, fooService, args);
         Assertions.assertThrows(IllegalArgumentException.class, () -> {
@@ -371,6 +372,60 @@ public class NewProxyTest {
         } finally {
             pool.shutdown();
         }
+    }
+
+    /**
+     * Case: try to generate a proxy class for a single class.
+     */
+    @Test
+    public void testForProxyClassGenerationForSingleClass() {
+        InvocationInterceptor interceptor = ((proxy, method, args) -> {
+            if (logger.isLoggable(Level.INFO)) {
+                logger.log(Level.INFO, "Method name: " + method.getMethod().getName());
+            }
+            return method.invoke(proxy, null, args);
+        });
+        ProxySample proxySample = (ProxySample) NewProxy.newProxyInstance(ProxySample.class.getClassLoader(), interceptor, ProxySample.class);
+        proxySample.sayHi();
+        Assertions.assertEquals("Hello, Lam Tong", proxySample.hello("Lam Tong"));
+        Assertions.assertEquals("6.0", proxySample.add(1, 2.0, 3L));
+    }
+
+    /**
+     * Case: try to generate a proxy class for multiple classes.
+     */
+    @Test
+    public void testForProxyClassGenerationForMultipleClasses() {
+        InvocationInterceptor interceptor = ((proxy, method, args) -> {
+            if (logger.isLoggable(Level.INFO)) {
+                logger.log(Level.INFO, "Method name: " + method.getMethod().getName());
+            }
+            return method.invoke(proxy, null, args);
+        });
+        Assertions.assertThrows(IllegalArgumentException.class, () -> {
+            ProxySample proxySample = (ProxySample) NewProxy.newProxyInstance(ProxySample.class.getClassLoader(), interceptor, ProxySample.class, SimpleSample.class);
+        }, "No exception when creating proxy for two classes.");
+    }
+
+    /**
+     * Case: try to generate a proxy class for a single class and a single interface.
+     */
+    @Test
+    public void testForSingleClassAndSingleInterface() {
+        InvocationInterceptor interceptor = ((proxy, method, args) -> {
+            if (logger.isLoggable(Level.INFO)) {
+                logger.log(Level.INFO, "Method name: " + method.getMethod().getName());
+            }
+            if (method.getMethod().getDeclaringClass().isInterface()) {
+                return method.invoke(proxy, barService, args);
+            }
+            return method.invoke(proxy, null, args);
+        });
+        ProxySample proxySample = (ProxySample) NewProxy.newProxyInstance(ProxySample.class.getClassLoader(), interceptor, ProxySample.class, BarService.class);
+        BarService service = (BarService) proxySample;
+        service.bar();
+        Assertions.assertEquals("Hello, Lam Tong", proxySample.hello("Lam Tong"));
+        Assertions.assertEquals("6.0", proxySample.add(1, 2.0, 3L));
     }
 
 }

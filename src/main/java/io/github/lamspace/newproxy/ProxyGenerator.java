@@ -27,6 +27,7 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.util.*;
@@ -142,10 +143,31 @@ public final class ProxyGenerator {
      */
     private static final ThreadLocal<LinkedHashMap<Method, String>> METHOD_CACHE = new ThreadLocal<>();
 
-    public static byte[] generate(String proxyClass, int accessFlag, Class<?>[] interfaces) {
+    public static byte[] generate(String proxyClass, int accessFlag, Class<?>[] classes) {
         proxyClassName.set(proxyClass);
         METHOD_CACHE.set(new LinkedHashMap<>());
-        ClassGen classGen = new ClassGen(proxyClassName.get(), Object.class.getName(), "<generated>", accessFlag, extractNamesFromInterfaces(interfaces));
+
+        // Checks if the specified classes contain a base class to be extended or not.
+        // If so, the proxy class will extend the base class.
+        Class<?> parentClass = findClass(classes);
+        ClassGen classGen;
+        if (parentClass != null) {
+            int modifiers = parentClass.getModifiers();
+            // fixme: what kind of class can be extended? Should static class be extended or not?
+            if (Modifier.isPrivate(modifiers)) {
+                throw new RuntimeException("Class [" + parentClass.getName() + "] is private");
+            }
+            if (Modifier.isAbstract(modifiers)) {
+                throw new RuntimeException("Class [" + parentClass.getName() + "] is abstract");
+            }
+            if (Modifier.isFinal(modifiers)) {
+                throw new RuntimeException("Class [" + parentClass.getName() + "] is final");
+            }
+            classGen = new ClassGen(proxyClassName.get(), parentClass.getName(), "<generated>", accessFlag, extractNamesFromInterfaces(filterClass(classes)));
+        } else {
+            classGen = new ClassGen(proxyClassName.get(), Object.class.getName(), "<generated>", accessFlag, extractNamesFromInterfaces(classes));
+        }
+
         try {
             ConstantPoolGen constantPool = classGen.getConstantPool();
             classGen.setMinor(Const.MINOR_1_8);
@@ -155,13 +177,13 @@ public final class ProxyGenerator {
             classGen.addAnnotationEntry(new AnnotationEntryGen(new ObjectType(Proxied.class.getName()), Collections.emptyList(), true, constantPool));
 
             // generates static variables for proxy class
-            generateStaticVariables(classGen, constantPool, interfaces);
+            generateStaticVariables(classGen, constantPool, classes);
 
             // initialize static variable for proxy class in static initializer
             initializeStaticVariables(classGen, constantPool);
 
             // generate default constructor for proxy class
-            generateDefaultConstructor(classGen, constantPool);
+            generateDefaultConstructor(classGen, constantPool, parentClass);
 
             // generate methods to invoke
             generateMethods(classGen, constantPool);
@@ -196,6 +218,31 @@ public final class ProxyGenerator {
         return javaClass.getBytes();
     }
 
+    /**
+     * Finds the first non-interface class in the specified classes.
+     *
+     * @param classes classes to be checked
+     * @return the first non-interface class in the specified classes, otherwise null.
+     */
+    private static Class<?> findClass(Class<?>[] classes) {
+        return Arrays.stream(classes)
+                .filter(c -> !c.isInterface())
+                .findFirst()
+                .orElse(null);
+    }
+
+    /**
+     * Filters out a class object, retaining only interfaces.
+     *
+     * @param classes classes to be filtered
+     * @return an array of interfaces.
+     */
+    private static Class<?>[] filterClass(Class<?>[] classes) {
+        return Arrays.stream(classes)
+                .filter(Class::isInterface)
+                .toArray(Class<?>[]::new);
+    }
+
     private static String[] extractNamesFromInterfaces(Class<?>[] interfaces) {
         String[] res = new String[interfaces.length + 1];
         for (int i = 0; i < interfaces.length; i++) {
@@ -216,7 +263,7 @@ public final class ProxyGenerator {
         classGen.addField(m2);
     }
 
-    private static void generateStaticVariables(ClassGen classGen, ConstantPoolGen constantPool, Class<?>[] interfaces) {
+    private static void generateStaticVariables(ClassGen classGen, ConstantPoolGen constantPool, Class<?>[] classes) {
         generateDefaultStaticVariables(classGen, constantPool);
         try {
             Class<?> clazz = Class.forName(Object.class.getName());
@@ -227,8 +274,19 @@ public final class ProxyGenerator {
             throw new RuntimeException(e);
         }
         List<Method> methods = new ArrayList<>();
-        for (Class<?> clazz : interfaces) {
-            methods.addAll(Arrays.asList(clazz.getMethods()));
+        for (Class<?> clazz : classes) {
+            if (clazz.isInterface()) {
+                // Class object represents an interface
+                methods.addAll(Arrays.asList(clazz.getMethods()));
+            } else {
+                // Class object represents a class.
+                // Methods inherited from Class Object should be excluded.
+                methods.addAll(Arrays.stream(clazz.getMethods())
+                        .filter(m -> !m.getDeclaringClass().equals(Object.class))
+                        .filter(m -> !Modifier.isFinal(m.getModifiers()))
+                        .filter(m -> !Modifier.isStatic(m.getModifiers()))
+                        .collect(Collectors.toList()));
+            }
         }
         if (methods.isEmpty()) {
             return;
@@ -248,7 +306,7 @@ public final class ProxyGenerator {
         }
     }
 
-    private static String getMethodSignature(Method method) {
+    public static String getMethodSignature(Method method) {
         String name = method.getName();
         Class<?> returnType = method.getReturnType();
         Parameter[] parameters = method.getParameters();
@@ -357,7 +415,7 @@ public final class ProxyGenerator {
         }
     }
 
-    private static void generateDefaultConstructor(ClassGen classGen, ConstantPoolGen constantPool) {
+    private static void generateDefaultConstructor(ClassGen classGen, ConstantPoolGen constantPool, Class<?> parentClass) {
         FieldGen handlerFieldGen = new FieldGen(Const.ACC_PRIVATE | Const.ACC_FINAL, new ObjectType(InvocationInterceptor.class.getName()), FIELD_INTERCEPTOR, constantPool);
         classGen.addField(handlerFieldGen.getField());
 
@@ -365,7 +423,11 @@ public final class ProxyGenerator {
         InstructionFactory factory = new InstructionFactory(constantPool);
         MethodGen methodGen = new MethodGen(Const.ACC_PUBLIC, Type.VOID, new Type[]{new ObjectType(InvocationInterceptor.class.getName())}, new String[]{FIELD_INTERCEPTOR}, METHOD_INIT, proxyClassName.get(), list, constantPool);
         list.append(new ALOAD(0));
-        list.append(factory.createInvoke(Object.class.getName(), METHOD_INIT, Type.VOID, Type.NO_ARGS, Const.INVOKESPECIAL));
+        if (parentClass != null) {
+            list.append(factory.createInvoke(parentClass.getName(), METHOD_INIT, Type.VOID, Type.NO_ARGS, Const.INVOKESPECIAL));
+        } else {
+            list.append(factory.createInvoke(Object.class.getName(), METHOD_INIT, Type.VOID, Type.NO_ARGS, Const.INVOKESPECIAL));
+        }
         list.append(new ALOAD(0));
         list.append(new ALOAD(1));
         list.append(new PUTFIELD(constantPool.addFieldref(proxyClassName.get(), FIELD_INTERCEPTOR, SIGNATURE_INVOCATION_INTERCEPTOR)));
@@ -387,27 +449,6 @@ public final class ProxyGenerator {
             for (int i = 0; i < parameters.length; i++) {
                 Class<?> type = parameters[i].getType();
                 types[i] = getTypeFromClass(type);
-//                if (type.isPrimitive()) {
-//                    if (type == boolean.class) {
-//                        types[i] = Type.BOOLEAN;
-//                    } else if (type == byte.class) {
-//                        types[i] = Type.BYTE;
-//                    } else if (type == short.class) {
-//                        types[i] = Type.SHORT;
-//                    } else if (type == char.class) {
-//                        types[i] = Type.CHAR;
-//                    } else if (type == int.class) {
-//                        types[i] = Type.INT;
-//                    } else if (type == long.class) {
-//                        types[i] = Type.LONG;
-//                    } else if (type == float.class) {
-//                        types[i] = Type.FLOAT;
-//                    } else if (type == double.class) {
-//                        types[i] = Type.DOUBLE;
-//                    }
-//                } else {
-//                    types[i] = new ObjectType(type.getName());
-//                }
             }
             InstructionFactory factory = new InstructionFactory(constantPool);
 
@@ -577,11 +618,16 @@ public final class ProxyGenerator {
     }
 
     @SuppressWarnings(value = {"DuplicatedCode"})
-    private static void generateDispatchMethod(ClassGen classGen, ConstantPoolGen constantPool) {
+    private static void generateDispatchMethod(ClassGen classGen, ConstantPoolGen constantPool) throws NoSuchMethodException {
+        Set<String> set = new HashSet<String>() {{
+            add("equals");
+            add("hashCode");
+            add("toString");
+        }};
         List<Method> methods = METHOD_CACHE.get()
                 .keySet()
                 .stream()
-                .filter(m -> m.getDeclaringClass().isInterface())
+                .filter(m -> !set.contains(m.getName()))
                 .collect(Collectors.toList());
 
         InstructionList list = new InstructionList();
@@ -589,7 +635,7 @@ public final class ProxyGenerator {
         MethodGen methodGen = new MethodGen(Const.ACC_PUBLIC | Const.ACC_FINAL, Type.OBJECT, new Type[]{Type.OBJECT, new ObjectType(Method.class.getName()), new ArrayType(Type.OBJECT, 1)}, new String[]{"object", "method", "args"}, "dispatch", CLASS_INVOCATION_DISPATCHER, list, constantPool);
 
         list.append(new ALOAD(2));
-        list.append(factory.createInvoke(Method.class.getName(), METHOD_GET_NAME, Type.STRING, Type.NO_ARGS, Const.INVOKEVIRTUAL));
+        list.append(factory.createInvoke(ProxyGenerator.class.getName(), "getMethodSignature", Type.STRING, new Type[]{new ObjectType(Method.class.getName())}, Const.INVOKESTATIC));
         list.append(new ASTORE(4));
 
         IFEQ ifCondition;
@@ -597,7 +643,8 @@ public final class ProxyGenerator {
         InstructionHandle pre, cur;
 
         // equals, hashCode and toString whose declaring class is Object.class
-        list.append(new LDC(constantPool.addString(METHOD_EQUALS)));
+        // Object.equals(Object o)
+        list.append(new LDC(constantPool.addString(getMethodSignature(Object.class.getMethod("equals", Object.class)))));
         list.append(new ALOAD(4));
         list.append(factory.createInvoke(String.class.getName(), METHOD_EQUALS, Type.BOOLEAN, new Type[]{Type.OBJECT}, Const.INVOKEVIRTUAL));
         ifCondition = new IFEQ(null);
@@ -610,7 +657,8 @@ public final class ProxyGenerator {
         list.append(factory.createInvoke(Boolean.class.getName(), METHOD_VALUE_OF, new ObjectType(Boolean.class.getName()), new Type[]{Type.BOOLEAN}, Const.INVOKESTATIC));
         list.append(new ARETURN());
 
-        cur = list.append(new LDC(constantPool.addString(METHOD_HASH_CODE)));
+        // Object.hashCode()
+        cur = list.append(new LDC(constantPool.addString(getMethodSignature(Object.class.getMethod("hashCode")))));
         ifCondition.setTarget(cur);
         list.append(new ALOAD(4));
         list.append(factory.createInvoke(String.class.getName(), METHOD_EQUALS, Type.BOOLEAN, new Type[]{Type.OBJECT}, Const.INVOKEVIRTUAL));
@@ -625,7 +673,8 @@ public final class ProxyGenerator {
         entries[0] = new StackMapEntry(Const.APPEND_FRAME, cur.getPosition(), new StackMapType[]{new StackMapType((byte) 7, constantPool.addClass(String.class.getName()), constantPool.getConstantPool())}, new StackMapType[0], constantPool.getConstantPool());
         pre = cur;
 
-        cur = list.append(new LDC(constantPool.addString(METHOD_TO_STRING)));
+        // Object.toString()
+        cur = list.append(new LDC(constantPool.addString(getMethodSignature(Object.class.getMethod("toString")))));
         ifCondition.setTarget(cur);
         list.append(new ALOAD(4));
         list.append(factory.createInvoke(String.class.getName(), METHOD_EQUALS, Type.BOOLEAN, new Type[]{Type.OBJECT}, Const.INVOKEVIRTUAL));
@@ -641,65 +690,159 @@ public final class ProxyGenerator {
 
         for (int i = 0; i < methods.size(); i++) {
             Method method = methods.get(i);
-            String methodName = method.getName(), doMethodName = "do" + StringUtils.capitalize(methodName);
-            Parameter[] parameters = method.getParameters();
-            Type returnType = getTypeFromClass(method.getReturnType());
+            if (method.getDeclaringClass().isInterface()) {
+                // method from interface, which should be invoked via MethodHandle along with another "doInvoke..." method
+                String methodName = method.getName(), doMethodName = METHOD_DO_INVOKE + StringUtils.capitalize(methodName);
+                Parameter[] parameters = method.getParameters();
+                Type returnType = getTypeFromClass(method.getReturnType());
 
-            Type[] parameterTypes;
-            if (parameters.length > 0) {
-                parameterTypes = new Type[]{Type.OBJECT, new ArrayType(Type.OBJECT, 1)};
+                Type[] parameterTypes;
+                if (parameters.length > 0) {
+                    parameterTypes = new Type[]{Type.OBJECT, new ArrayType(Type.OBJECT, 1)};
+                } else {
+                    parameterTypes = new Type[]{Type.OBJECT};
+                }
+
+                cur = list.append(new LDC(constantPool.addString(getMethodSignature(method))));
+                ifCondition.setTarget(cur);
+                list.append(new ALOAD(4));
+                list.append(factory.createInvoke(String.class.getName(), METHOD_EQUALS, Type.BOOLEAN, new Type[]{Type.OBJECT}, Const.INVOKEVIRTUAL));
+                ifCondition = new IFEQ(null);
+                list.append(ifCondition);
+                list.append(new ALOAD(0));
+                list.append(new ALOAD(1));
+                if (parameters.length > 0) {
+                    list.append(new ALOAD(3));
+                }
+                list.append(factory.createInvoke(proxyClassName.get(), doMethodName, returnType, parameterTypes, Const.INVOKEVIRTUAL));
+
+                if (returnType.equals(Type.VOID)) {
+                    list.append(new ACONST_NULL());
+                    list.append(new ARETURN());
+                } else if (returnType.equals(Type.BOOLEAN)) {
+                    list.append(factory.createInvoke(Boolean.class.getName(), METHOD_VALUE_OF, new ObjectType(Boolean.class.getName()), new Type[]{Type.BOOLEAN}, Const.INVOKESTATIC));
+                    list.append(new ARETURN());
+                } else if (returnType.equals(Type.BYTE)) {
+                    list.append(factory.createInvoke(Byte.class.getName(), METHOD_VALUE_OF, new ObjectType(Byte.class.getName()), new Type[]{Type.BYTE}, Const.INVOKESTATIC));
+                    list.append(new ARETURN());
+                } else if (returnType.equals(Type.SHORT)) {
+                    list.append(factory.createInvoke(Short.class.getName(), METHOD_VALUE_OF, new ObjectType(Short.class.getName()), new Type[]{Type.SHORT}, Const.INVOKESTATIC));
+                    list.append(new ARETURN());
+                } else if (returnType.equals(Type.CHAR)) {
+                    list.append(factory.createInvoke(Character.class.getName(), METHOD_VALUE_OF, new ObjectType(Character.class.getName()), new Type[]{Type.CHAR}, Const.INVOKESTATIC));
+                    list.append(new ARETURN());
+                } else if (returnType.equals(Type.INT)) {
+                    list.append(factory.createInvoke(Integer.class.getName(), METHOD_VALUE_OF, new ObjectType(Integer.class.getName()), new Type[]{Type.INT}, Const.INVOKESTATIC));
+                    list.append(new ARETURN());
+                } else if (returnType.equals(Type.LONG)) {
+                    list.append(factory.createInvoke(Long.class.getName(), METHOD_VALUE_OF, new ObjectType(Long.class.getName()), new Type[]{Type.LONG}, Const.INVOKESTATIC));
+                    list.append(new ARETURN());
+                } else if (returnType.equals(Type.FLOAT)) {
+                    list.append(factory.createInvoke(Float.class.getName(), METHOD_VALUE_OF, new ObjectType(Float.class.getName()), new Type[]{Type.FLOAT}, Const.INVOKESTATIC));
+                    list.append(new ARETURN());
+                } else if (returnType.equals(Type.DOUBLE)) {
+                    list.append(factory.createInvoke(Double.class.getName(), METHOD_VALUE_OF, new ObjectType(Double.class.getName()), new Type[]{Type.DOUBLE}, Const.INVOKESTATIC));
+                    list.append(new ARETURN());
+                } else {
+                    list.append(new ARETURN());
+                }
+
+                list.setPositions();
+                entries[i + 2] = new StackMapEntry(cur.getPosition() - pre.getPosition() - 1, cur.getPosition() - pre.getPosition() - 1, new StackMapType[0], new StackMapType[0], constantPool.getConstantPool());
+                pre = cur;
+                generateDoInvokeMethod(classGen, constantPool, method);
             } else {
-                parameterTypes = new Type[]{Type.OBJECT};
-            }
+                // method from class, which should be invoked by "super" directly
+                Parameter[] parameters = method.getParameters();
+                Type returnType = getTypeFromClass(method.getReturnType());
+                Type[] argsType = new Type[parameters.length];
+                for (int j = 0; j < argsType.length; j++) {
+                    argsType[j] = getTypeFromClass(parameters[j].getType());
+                }
 
-            cur = list.append(new LDC(constantPool.addString(methodName)));
-            ifCondition.setTarget(cur);
-            list.append(new ALOAD(4));
-            list.append(factory.createInvoke(String.class.getName(), METHOD_EQUALS, Type.BOOLEAN, new Type[]{Type.OBJECT}, Const.INVOKEVIRTUAL));
-            ifCondition = new IFEQ(null);
-            list.append(ifCondition);
-            list.append(new ALOAD(0));
-            list.append(new ALOAD(1));
-            if (parameters.length > 0) {
-                list.append(new ALOAD(3));
-            }
-            list.append(factory.createInvoke(proxyClassName.get(), doMethodName, returnType, parameterTypes, Const.INVOKEVIRTUAL));
+                cur = list.append(new LDC(constantPool.addString(getMethodSignature(method))));
+                ifCondition.setTarget(cur);
+                list.append(new ALOAD(4));
+                list.append(factory.createInvoke(String.class.getName(), METHOD_EQUALS, Type.BOOLEAN, new Type[]{Type.OBJECT}, Const.INVOKEVIRTUAL));
+                ifCondition = new IFEQ(null);
+                list.append(ifCondition);
+                list.append(new ALOAD(0));
 
-            if (returnType.equals(Type.VOID)) {
-                list.append(new ACONST_NULL());
-                list.append(new ARETURN());
-            } else if (returnType.equals(Type.BOOLEAN)) {
-                list.append(factory.createInvoke(Boolean.class.getName(), METHOD_VALUE_OF, new ObjectType(Boolean.class.getName()), new Type[]{Type.BOOLEAN}, Const.INVOKESTATIC));
-                list.append(new ARETURN());
-            } else if (returnType.equals(Type.BYTE)) {
-                list.append(factory.createInvoke(Byte.class.getName(), METHOD_VALUE_OF, new ObjectType(Byte.class.getName()), new Type[]{Type.BYTE}, Const.INVOKESTATIC));
-                list.append(new ARETURN());
-            } else if (returnType.equals(Type.SHORT)) {
-                list.append(factory.createInvoke(Short.class.getName(), METHOD_VALUE_OF, new ObjectType(Short.class.getName()), new Type[]{Type.SHORT}, Const.INVOKESTATIC));
-                list.append(new ARETURN());
-            } else if (returnType.equals(Type.CHAR)) {
-                list.append(factory.createInvoke(Character.class.getName(), METHOD_VALUE_OF, new ObjectType(Character.class.getName()), new Type[]{Type.CHAR}, Const.INVOKESTATIC));
-                list.append(new ARETURN());
-            } else if (returnType.equals(Type.INT)) {
-                list.append(factory.createInvoke(Integer.class.getName(), METHOD_VALUE_OF, new ObjectType(Integer.class.getName()), new Type[]{Type.INT}, Const.INVOKESTATIC));
-                list.append(new ARETURN());
-            } else if (returnType.equals(Type.LONG)) {
-                list.append(factory.createInvoke(Long.class.getName(), METHOD_VALUE_OF, new ObjectType(Long.class.getName()), new Type[]{Type.LONG}, Const.INVOKESTATIC));
-                list.append(new ARETURN());
-            } else if (returnType.equals(Type.FLOAT)) {
-                list.append(factory.createInvoke(Float.class.getName(), METHOD_VALUE_OF, new ObjectType(Float.class.getName()), new Type[]{Type.FLOAT}, Const.INVOKESTATIC));
-                list.append(new ARETURN());
-            } else if (returnType.equals(Type.DOUBLE)) {
-                list.append(factory.createInvoke(Double.class.getName(), METHOD_VALUE_OF, new ObjectType(Double.class.getName()), new Type[]{Type.DOUBLE}, Const.INVOKESTATIC));
-                list.append(new ARETURN());
-            } else {
-                list.append(new ARETURN());
-            }
+                for (int j = 0; j < parameters.length; j++) {
+                    Parameter parameter = parameters[j];
 
-            list.setPositions();
-            entries[i + 2] = new StackMapEntry(cur.getPosition() - pre.getPosition() - 1, cur.getPosition() - pre.getPosition() - 1, new StackMapType[0], new StackMapType[0], constantPool.getConstantPool());
-            pre = cur;
-            generateDoMethod(classGen, constantPool, method);
+                    list.append(new ALOAD(3));
+                    list.append(new ICONST(j));
+                    list.append(new AALOAD());
+                    if (parameter.getType().equals(Object.class)) {
+                        // parameter type is Object.class, ignore
+                    } else if (parameter.getType().isPrimitive()) {
+                        // parameter type is primitive type
+                        if (parameter.getType().equals(boolean.class)) {
+                            list.append(new CHECKCAST(constantPool.addClass(Boolean.class.getName())));
+                            list.append(factory.createInvoke(Boolean.class.getName(), METHOD_BOOLEAN_VALUE, Type.BOOLEAN, Type.NO_ARGS, Const.INVOKEVIRTUAL));
+                        } else if (parameter.getType().equals(byte.class)) {
+                            list.append(new CHECKCAST(constantPool.addClass(Byte.class.getName())));
+                            list.append(factory.createInvoke(Byte.class.getName(), METHOD_BYTE_VALUE, Type.BYTE, Type.NO_ARGS, Const.INVOKEVIRTUAL));
+                        } else if (parameter.getType().equals(short.class)) {
+                            list.append(new CHECKCAST(constantPool.addClass(Short.class.getName())));
+                            list.append(factory.createInvoke(Short.class.getName(), METHOD_SHORT_VALUE, Type.SHORT, Type.NO_ARGS, Const.INVOKEVIRTUAL));
+                        } else if (parameter.getType().equals(char.class)) {
+                            list.append(new CHECKCAST(constantPool.addClass(Character.class.getName())));
+                            list.append(factory.createInvoke(Character.class.getName(), METHOD_CHAR_VALUE, Type.CHAR, Type.NO_ARGS, Const.INVOKEVIRTUAL));
+                        } else if (parameter.getType().equals(int.class)) {
+                            list.append(new CHECKCAST(constantPool.addClass(Integer.class.getName())));
+                            list.append(factory.createInvoke(Integer.class.getName(), METHOD_INT_VALUE, Type.INT, Type.NO_ARGS, Const.INVOKEVIRTUAL));
+                        } else if (parameter.getType().equals(long.class)) {
+                            list.append(new CHECKCAST(constantPool.addClass(Long.class.getName())));
+                            list.append(factory.createInvoke(Long.class.getName(), METHOD_LONG_VALUE, Type.LONG, Type.NO_ARGS, Const.INVOKEVIRTUAL));
+                        } else if (parameter.getType().equals(float.class)) {
+                            list.append(new CHECKCAST(constantPool.addClass(Float.class.getName())));
+                            list.append(factory.createInvoke(Float.class.getName(), METHOD_FLOAT_VALUE, Type.FLOAT, Type.NO_ARGS, Const.INVOKEVIRTUAL));
+                        } else if (parameter.getType().equals(double.class)) {
+                            list.append(new CHECKCAST(constantPool.addClass(Double.class.getName())));
+                            list.append(factory.createInvoke(Double.class.getName(), METHOD_DOUBLE_VALUE, Type.DOUBLE, Type.NO_ARGS, Const.INVOKEVIRTUAL));
+                        }
+                    } else {
+                        // parameter type is wrapper type
+                        list.append(new CHECKCAST(constantPool.addClass(parameter.getType().getName())));
+                    }
+                }
+
+                if (parameters.length > 0) {
+                    list.append(factory.createInvoke(method.getDeclaringClass().getName(), method.getName(), returnType, argsType, Const.INVOKESPECIAL));
+                } else {
+                    list.append(factory.createInvoke(method.getDeclaringClass().getName(), method.getName(), returnType, Type.NO_ARGS, Const.INVOKESPECIAL));
+                }
+
+                // return value
+                if (method.getReturnType().equals(void.class)) {
+                    list.append(new ACONST_NULL());
+                } else if (method.getReturnType().equals(boolean.class)) {
+                    list.append(factory.createInvoke(Boolean.class.getName(), METHOD_VALUE_OF, Type.BOOLEAN, Type.NO_ARGS, Const.INVOKESTATIC));
+                } else if (method.getReturnType().equals(byte.class)) {
+                    list.append(factory.createInvoke(Byte.class.getName(), METHOD_VALUE_OF, Type.BYTE, Type.NO_ARGS, Const.INVOKESTATIC));
+                } else if (method.getReturnType().equals(short.class)) {
+                    list.append(factory.createInvoke(Short.class.getName(), METHOD_VALUE_OF, Type.SHORT, Type.NO_ARGS, Const.INVOKESTATIC));
+                } else if (method.getReturnType().equals(char.class)) {
+                    list.append(factory.createInvoke(Character.class.getName(), METHOD_VALUE_OF, Type.CHAR, Type.NO_ARGS, Const.INVOKESTATIC));
+                } else if (method.getReturnType().equals(int.class)) {
+                    list.append(factory.createInvoke(Integer.class.getName(), METHOD_VALUE_OF, Type.INT, Type.NO_ARGS, Const.INVOKESTATIC));
+                } else if (method.getReturnType().equals(long.class)) {
+                    list.append(factory.createInvoke(Long.class.getName(), METHOD_VALUE_OF, Type.LONG, Type.NO_ARGS, Const.INVOKESTATIC));
+                } else if (method.getReturnType().equals(float.class)) {
+                    list.append(factory.createInvoke(Float.class.getName(), METHOD_VALUE_OF, Type.FLOAT, Type.NO_ARGS, Const.INVOKESTATIC));
+                } else if (method.getReturnType().equals(double.class)) {
+                    list.append(factory.createInvoke(Double.class.getName(), METHOD_VALUE_OF, Type.DOUBLE, Type.NO_ARGS, Const.INVOKESTATIC));
+                } else {
+                    list.append(new CHECKCAST(constantPool.addClass(method.getReturnType().getName())));
+                }
+                list.append(new ARETURN());
+
+                list.setPositions();
+                entries[i + 2] = new StackMapEntry(cur.getPosition() - pre.getPosition() - 1, cur.getPosition() - pre.getPosition() - 1, new StackMapType[0], new StackMapType[0], constantPool.getConstantPool());
+                pre = cur;
+            }
         }
         cur = list.append(new ACONST_NULL());
         ifCondition.setTarget(cur);
@@ -707,6 +850,7 @@ public final class ProxyGenerator {
 
         list.setPositions();
         entries[entries.length - 1] = new StackMapEntry(cur.getPosition() - pre.getPosition() - 1, cur.getPosition() - pre.getPosition() - 1, new StackMapType[0], new StackMapType[0], constantPool.getConstantPool());
+        // fixme: How to figure out the length of this StackMapTable attribute?
         methodGen.addCodeAttribute(new StackMap(constantPool.addUtf8(STACK_MAP_TABLE), 10 + methods.size(), entries, constantPool.getConstantPool()));
         methodGen.addException(CLASS_THROWABLE);
 
@@ -717,8 +861,8 @@ public final class ProxyGenerator {
         list.dispose();
     }
 
-    private static void generateDoMethod(ClassGen classGen, ConstantPoolGen constantPool, Method method) {
-        String methodName = method.getName(), doMethodName = "do" + StringUtils.capitalize(methodName);
+    private static void generateDoInvokeMethod(ClassGen classGen, ConstantPoolGen constantPool, Method method) {
+        String methodName = method.getName(), doMethodName = METHOD_DO_INVOKE + StringUtils.capitalize(methodName);
         Class<?> returnType = method.getReturnType();
         Parameter[] parameters = method.getParameters();
 

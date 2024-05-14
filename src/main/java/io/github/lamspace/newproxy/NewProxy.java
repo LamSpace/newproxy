@@ -25,7 +25,6 @@ import sun.security.util.SecurityConstants;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.*;
 import java.security.AccessController;
-import java.security.Permission;
 import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.IdentityHashMap;
@@ -328,80 +327,37 @@ public final class NewProxy {
         }
     }
 
-    /**
-     * Returns an instance of a proxy class for the specified interfaces that dispatches method invocations to the
-     * specified invocation handler.<br/>
-     * This method throws {@link IllegalArgumentException} for the same reason that
-     * {@link NewProxy#getProxyClass(ClassLoader, Class[])} does.
-     *
-     * @param classLoader the class loader to define the proxy class
-     * @param interceptor the list of interfaces for the proxy class to implement
-     * @param interfaces  the invocation handler to dispatch method invocation to
-     * @return a proxy instance with the specified invocation handler of a proxy class that is defined by the
-     * specified class loader and that implements the specified interfaces.
-     * @throws IllegalArgumentException if any of these restrictions on the parameters that has been passed to
-     *                                  {{@link #getProxyClass(ClassLoader, Class[])}} are violated.
-     * @throws NullPointerException     if the {@code interfaces} array argument or any of its elements are {@code null}
-     * @throws SecurityException        if a security manager, s, is present and any of the following conditions is met:
-     *                                  <ul>
-     *                                      <li>the given {@code classLoader} is {@code null} and the caller's class
-     *                                      loader is not {@code null} and the invocation of {@link
-     *                                      SecurityManager#checkPermission(Permission) s.checkPermission} with
-     *                                      {@code RuntimePermission("getClassLoader")} permission denies access.</li>
-     *                                      <li> for each proxy interface, {@code intf},
-     *                                      the caller's class loader is not the same as or an
-     *                                      ancestor of the class loader for {@code intf} and
-     *                                      invocation of {@link SecurityManager#checkPackageAccess
-     *                                      s.checkPackageAccess()} denies access to {@code intf}.</li>
-     *                                      <li>any of the given proxy interfaces is non-public and the
-     *                                      caller class is not in the same {@linkplain Package runtime package}
-     *                                      as the non-public interface and the invocation of
-     *                                      {@link SecurityManager#checkPermission s.checkPermission} with
-     *                                      {@code ReflectPermission("newProxyInPackage.{package name}")}
-     *                                      permission denies access.</li>
-     *                                  </ul>
-     * @throws InternalError            If any of the following conditions is met, an {@link InternalError}
-     *                                  will be thrown:
-     *                                  <ul>
-     *                                      <li>constructor of the proxy class with parameter of type
-     *                                      {@link InvocationInterceptor} can not be accessed.</li>
-     *                                      <li>if the class that declares the underlying constructor represents
-     *                                      an abstract class.</li>
-     *                                      <li>if the proxy class does not contains a constructor with parameter
-     *                                      of type {@link InvocationInterceptor}.</li>
-     *                                      <li>if the underlying constructor throws an exception</li>
-     *                                  </ul>
-     */
     @SuppressWarnings(value = {"DuplicatedCode"})
     @CallerSensitive
     public static Object newProxyInstance(ClassLoader classLoader,
                                           InvocationInterceptor interceptor,
-                                          Class<?>... interfaces) {
+                                          Class<?>... classes) {
         Objects.requireNonNull(interceptor);
-        if (interfaces == null) {
-            throw new NullPointerException("interfaces is null");
+        if (classes == null) {
+            throw new NullPointerException("classes is null");
         }
-        if (interfaces.length == 0) {
-            throw new IllegalArgumentException("interfaces.length == 0");
+        if (classes.length == 0) {
+            throw new IllegalArgumentException("classes.length == 0");
         }
-        if (areInterfaces(interfaces)) {
-            throw new IllegalArgumentException("Only interface is available");
+        if (!checkClasses(classes)) {
+            throw new IllegalArgumentException("classes contains more than one class");
         }
-        final Class<?>[] clonedInterfaces = new Class[interfaces.length];
-        System.arraycopy(interfaces, 0, clonedInterfaces, 0, interfaces.length);
+        final Class<?>[] clonedClasses = new Class[classes.length];
+        System.arraycopy(classes, 0, clonedClasses, 0, classes.length);
         final SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
-            checkProxyAccess(Reflection.getCallerClass(), classLoader, interfaces);
+            checkProxyAccess(Reflection.getCallerClass(), classLoader, classes);
         }
         try {
-            Class<?> generatedProxyClass = getProxyClass0(classLoader, clonedInterfaces);
+            Class<?> generatedProxyClass = getProxyClass0(classLoader, clonedClasses);
             if (sm != null) {
                 checkNewProxyPermission(Reflection.getCallerClass(), generatedProxyClass);
             }
             Constructor<?> constructor = generatedProxyClass.getConstructor(InvocationInterceptor.class);
-            // Access control is required whenever the constructor is public or not. Especially when specified
-            // interfaces contain non-public interfaces, the constructor is not accessible while the constructor's
-            // modifier is public. It's strange.
+            // Access control is required whether the constructor is public or not.
+            // Especially when specified classes contain non-public classes,
+            // the constructor is not accessible while the constructor's modifier is public.
+            // It's strange.
             // Maybe that is a difference between Proxy and NewProxy.
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                 constructor.setAccessible(true);
@@ -420,183 +376,70 @@ public final class NewProxy {
         }
     }
 
-    /**
-     * Returns the {@link java.lang.Class} object for a proxy class given a class loader and an array of interfaces.
-     * The proxy class will be defined by the specified class loader and will implement all the supplied interfaces.
-     * If any of the given interfaces is non-public, the proxy class will be non-public. If the class loader
-     * has already defined a proxy class for the same permutation of interfaces, then the existing proxy class
-     * will be returned; otherwise, a proxy class for those interfaces will be generated dynamically and defined by
-     * the class loader.<br/>
-     * There are several restrictions on the parameters that may be passed to this.
-     * <ul>
-     *     <li>All of the {@code Class} object in the {@code interfaces} array must represent interfaces, not
-     *     classes or primitive types.</li>
-     *     <li>No two elements in the {{@code interfaces}} array may refer to identical {@code Class} Object.</li>
-     *     <li>All the interface types must be visible by name through the specified class loader. In other words,
-     *     for class loader {@code loader} and every interface {@code i}, the following expression must be true:
-     *     <pre>Class.forName(i.getName(), false, loader) == i</pre></li>
-     *     <li>All non-public interfaces must be in the same package; otherwise, it would not be possible for
-     *     the proxy class to implement all the interfaces, regardless of what package it is defined in.</li>
-     *     <li><b>In general, only method name and associated parameters(number, type and order are considered) are
-     *     considered as factors to distinguish methods in a class. But here in {@code NewProxy}, method name,
-     *     parameters(number, type and order are considered) and return type are considered to compose the method
-     *     signature. In other words, if two methods have the same method name and parameters but without the same
-     *     return type, they are still considered as two different methods. For any set of member methods of
-     *     the specified interfaces that has the same signature:
-     *     <ul>
-     *         <li>Method implemented by the proxy class is depending on the order of the interface that
-     *         the proxy class implement. In other words, if two interfaces have two methods with the same signature,
-     *         then the 1st interface's method will be implemented and the 2nd's will be ignored.</li>
-     *         <li>If two methods with the same method name and parameter(number, type and order are all the same)
-     *         but return type of two methods are different, then these two methods should not be invoked by
-     *         {@code Reflection}. More precisely, proxy instance should be converted to a specific type of interface,
-     *         and then invoke the method.</li>
-     *     </ul>
-     *     </b>
-     *     </li>
-     *     <li>The resulting proxy class must not exceed any limits imposed ob classes by the virtual machine.
-     *     For example, the VM may limit the number of interfaces that a class may implement to {@code 65535};
-     *     in that case, the size of {@code interfaces} array must not exceed 65535.</li>
-     * </ul>
-     * If any of these restrictions are violated, this method will throw a {@link RuntimeException}.
-     * If the {@code interfaces} array argument or any of its elements are {@code null}, a
-     * {@link NullPointerException} will be thrown.<br/>
-     * Note that the order of the specified proxy interfaces is significant: two requests for a proxy class with the
-     * same combination of interfaces but in a different order will result in two distinct proxy classes.
-     *
-     * @param classLoader the class loader to define the proxy class
-     * @param interfaces  the list of interfaces for the proxy class to implement
-     * @return a proxy class that is defined in the specified class loader and that implement the specified interfaces
-     * @throws IllegalArgumentException if any of these restrictions on the parameters that has been passed to
-     *                                  this method are violated.
-     * @throws NullPointerException     if the {@code interfaces} array argument or any of its elements are {@code null}
-     * @throws SecurityException        if a security manager, s, is present and any of the following conditions is met:
-     *                                  <ul>
-     *                                      <li>the given {@code classLoader} is {@code null} and the caller's class
-     *                                      loader is not {@code null} and the invocation of {@link
-     *                                      SecurityManager#checkPermission(Permission) s.checkPermission} with
-     *                                      {@code RuntimePermission("getClassLoader")} permission denies access.</li>
-     *                                      <li> for each proxy interface, {@code intf},
-     *                                      the caller's class loader is not the same as or an
-     *                                      ancestor of the class loader for {@code intf} and
-     *                                      invocation of {@link SecurityManager#checkPackageAccess
-     *                                      s.checkPackageAccess()} denies access to {@code intf}.</li>
-     *                                  </ul>
-     */
     @SuppressWarnings(value = {"DuplicatedCode"})
     @CallerSensitive
     public static Class<?> getProxyClass(ClassLoader classLoader,
-                                         Class<?>... interfaces) {
-        if (interfaces == null) {
-            throw new NullPointerException("interfaces is null");
+                                         Class<?>... classes) {
+        if (classes == null) {
+            throw new NullPointerException("classes is null");
         }
-        if (interfaces.length == 0) {
-            throw new IllegalArgumentException("interfaces.length == 0");
+        if (classes.length == 0) {
+            throw new IllegalArgumentException("classes.length == 0");
         }
-        if (areInterfaces(interfaces)) {
-            throw new IllegalArgumentException("Only interface is available");
+        if (!checkClasses(classes)) {
+            throw new IllegalArgumentException("classes contains more than one class");
         }
-        final Class<?>[] clonedInterfaces = new Class[interfaces.length];
-        System.arraycopy(interfaces, 0, clonedInterfaces, 0, interfaces.length);
+        final Class<?>[] clonedClasses = new Class[classes.length];
+        System.arraycopy(classes, 0, clonedClasses, 0, classes.length);
         final SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
-            checkProxyAccess(Reflection.getCallerClass(), classLoader, interfaces);
+            checkProxyAccess(Reflection.getCallerClass(), classLoader, classes);
         }
         try {
-            return getProxyClass0(classLoader, clonedInterfaces);
+            return getProxyClass0(classLoader, clonedClasses);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    /**
-     * Generate a proxy class for a specified class loader instance and an array of interfaces.
-     * Must call the {@link #checkProxyAccess(Class, ClassLoader, Class[])} method to perform
-     * permission checks before calling this.
-     *
-     * @param classLoader class loader instance
-     * @param interfaces  interfaces to implement
-     * @return a proxy class which implements specified interfaces with given class loader.
-     * @throws IllegalArgumentException if number of interfaces if greater than 65535, which means too many
-     *                                  interfaces to be implemented
-     */
     private static Class<?> getProxyClass0(ClassLoader classLoader,
-                                           Class<?>... interfaces) {
-        if (interfaces.length > 65535) {
-            throw new IllegalArgumentException("interface limit exceeded");
+                                           Class<?>... classes) {
+        if (classes.length > 65535) {
+            throw new IllegalArgumentException("classes limit exceeded");
         }
 
-        // If the proxy class defined by the given loader implementing the given interfaces exists, this will
+        // If the proxy class defined by the given loader implementing the given classes exists, this will
         // simply return the cached copy; otherwise, it will create the proxy class via the ProxyClassFactory
-        return proxyClassCache.get(classLoader, interfaces);
+        return proxyClassCache.get(classLoader, classes);
     }
 
     /**
-     * Checks specified array of interfaces and returns true if and only if all classes passed in are interfaces,
-     * not ant classes.<br/>
-     * Currently, {@link NewProxy} only supports for generating dynamic proxy class only for interfaces, not including
-     * classes, but it will support to generate a proxy class with at most one base class in the future.
+     * Checks if specified classes are all interfaces, or the specified classes contain one class at most,
+     * since {@link NewProxy} supports to generate dynamic class for class.
      *
-     * @param classes an array of interfaces
-     * @return true if and only if all specified classes are interfaces; otherwise, returns false.
+     * @param classes classes to be checked
+     * @return true if and only if specified classes contain one class at most; otherwise, returns false.
      */
-    private static boolean areInterfaces(Class<?>[] classes) {
-        for (Class<?> aClass : classes) {
-            if (!aClass.isInterface()) {
-                return true;
-            }
-        }
-        return false;
+    @SuppressWarnings(value = {"BooleanMethodIsAlwaysInverted"})
+    private static boolean checkClasses(Class<?>[] classes) {
+        int length = classes.length;
+        long number = Arrays.stream(classes).filter(Class::isInterface).count();
+        return length - number <= 1;
     }
 
-    /**
-     * Checks if specified {@code Class} is a dynamic proxy class or not, and returns true
-     * if specified {@code Class} object is a dynamic proxy class since dynamic proxy class
-     * generated by {@link NewProxy} annotated with {@link Proxied} annotation.
-     *
-     * @param clazz class to be checked
-     * @return true if and only if the specified class object is a dynamic proxy class; otherwise, returns false.
-     * @throws NullPointerException if specified clazz is null
-     */
     public static boolean isProxyClass(Class<?> clazz) {
         Objects.requireNonNull(clazz);
         Proxied proxied = clazz.getAnnotation(Proxied.class);
         if (proxied == null) {
             return false;
         }
-        return proxyClassCache.containsValue(clazz);
+        return InvocationDispatcher.class.isAssignableFrom(clazz) && proxyClassCache.containsValue(clazz);
     }
 
-    /**
-     * Checks whether specified {@code Object} is a dynamic instance or not, and returns
-     * true if the object is an instance of a dynamic proxy class generated by {@link NewProxy}.
-     *
-     * @param o object to be checked
-     * @return true if and only if the specified object is an instance of a dynamic proxy class generated
-     * by {@link NewProxy}; otherwise, returns false.
-     * @throws NullPointerException if the specified object is null
-     * @see #isProxyClass(Class)
-     */
     public static boolean isProxyInstance(Object o) {
         Objects.requireNonNull(o);
         return isProxyClass(o.getClass());
     }
-
-    /**
-     * Acquires the {@link InvocationInterceptor} instance holding by an instance of dynamic proxy class
-     * which is generated by {@link NewProxy} if the specified object is an instance of dynamic proxy class
-     * generated by {@link NewProxy}, whose name is "handler". Instance will be acquired by {@code Reflection}.
-     *
-     * @param o instance to acquire invocation handler instance
-     * @return {@link InvocationInterceptor} instance if and only if the specified object is an instance
-     * constructed by dynamic proxy class generated by {@link NewProxy}; otherwise, returns null
-     * @throws NoSuchFieldException     if the specified object does not contain a filed named "handler"
-     * @throws IllegalAccessException   if {@link InvocationInterceptor} instance can not be accessed via {@code Reflection}
-     * @throws IllegalArgumentException if the specified object contains an instance field named "handler" but not an
-     *                                  instance of {@link InvocationInterceptor}, or specified object is not a proxy
-     *                                  instance
-     * @throws NullPointerException     if the specified object is null
-     */
     @CallerSensitive
     public static InvocationInterceptor getInvocationHandler(Object o)
             throws NoSuchFieldException,
@@ -615,35 +458,16 @@ public final class NewProxy {
         return (InvocationInterceptor) obj;
     }
 
-    /**
-     * Checks permissions required to create a proxy class.<br/><br/>
-     * To define a proxy class, it performs the access checks as in Class.forName
-     * (VM will invoke ClassLoader.checkPackageAccess):
-     * <ol>
-     *     <li>"getClassLoader" permission check if loader == null</li>
-     *     <li>checkPackageAccess on the interfaces it implements</li>
-     * </ol>
-     * To get a constructor and new instance of a proxy class, it performs the package access
-     * check on the interfaces it implements as in Class.getConstructor.<br/><br/>
-     * If an interface is non-public, the proxy class must be defined by the defining loader of
-     * the interface. If the caller's class loader is different from the defining loader of the
-     * interface, the VM will throw {@link IllegalAccessError} when the generated proxy class is
-     * being defined via the defineClass0 method.
-     *
-     * @param caller     Class object of class.
-     * @param loader     class loader instance
-     * @param interfaces interfaces to implement
-     */
     private static void checkProxyAccess(Class<?> caller,
                                          ClassLoader loader,
-                                         Class<?>... interfaces) {
+                                         Class<?>... classes) {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
             ClassLoader ccl = caller.getClassLoader();
             if (VM.isSystemDomainLoader(loader) && !VM.isSystemDomainLoader(ccl)) {
                 sm.checkPermission(SecurityConstants.GET_CLASSLOADER_PERMISSION);
             }
-            ReflectUtil.checkProxyPackageAccess(ccl, interfaces);
+            ReflectUtil.checkProxyPackageAccess(ccl, classes);
         }
 
     }
@@ -740,11 +564,11 @@ public final class NewProxy {
         private final WeakReference<Class<?>>[] refs;
 
         @SuppressWarnings(value = {"unchecked"})
-        KeyX(Class<?>[] interfaces) {
-            this.hash = Arrays.hashCode(interfaces);
-            this.refs = (WeakReference<Class<?>>[]) new WeakReference[interfaces.length];
-            for (int i = 0; i < interfaces.length; i++) {
-                refs[i] = new WeakReference<>(interfaces[i]);
+        KeyX(Class<?>[] classes) {
+            this.hash = Arrays.hashCode(classes);
+            this.refs = (WeakReference<Class<?>>[]) new WeakReference[classes.length];
+            for (int i = 0; i < classes.length; i++) {
+                refs[i] = new WeakReference<>(classes[i]);
             }
         }
 
@@ -779,19 +603,18 @@ public final class NewProxy {
      * A function that maps an array of interfaces to an optimal key where Class objects representing
      * interfaces are weakly references.
      */
-    private static final class KeyFactory
-            implements BiFunction<ClassLoader, Class<?>[], Object> {
+    private static final class KeyFactory implements BiFunction<ClassLoader, Class<?>[], Object> {
 
         @Override
-        public Object apply(ClassLoader classLoader, Class<?>[] interfaces) {
-            if (interfaces.length == 1) {
+        public Object apply(ClassLoader classLoader, Class<?>[] classes) {
+            if (classes.length == 1) {
                 // the most frequent
-                return new Key1(interfaces[0]);
+                return new Key1(classes[0]);
             }
-            if (interfaces.length == 2) {
-                return new Key2(interfaces[0], interfaces[1]);
+            if (classes.length == 2) {
+                return new Key2(classes[0], classes[1]);
             }
-            return new KeyX(interfaces);
+            return new KeyX(classes);
         }
 
     }
@@ -810,29 +633,29 @@ public final class NewProxy {
         private static final AtomicLong nextUniqueNumber = new AtomicLong();
 
         @Override
-        public Class<?> apply(ClassLoader classLoader, Class<?>[] interfaces) {
-            Map<Class<?>, Boolean> interfaceSet = new IdentityHashMap<>();
-            for (Class<?> aClass : interfaces) {
+        public Class<?> apply(ClassLoader classLoader, Class<?>[] classes) {
+            Map<Class<?>, Boolean> classSet = new IdentityHashMap<>();
+            for (Class<?> aClass : classes) {
                 /*
-                 * Verify that the class loader resolves the name of the interface to the same Class object.
+                 * Verify that the class loader resolves the name of the class to the same Class object.
                  */
-                Class<?> interfaceClass = null;
+                Class<?> clazz = null;
                 try {
-                    interfaceClass = Class.forName(aClass.getName(), false, classLoader);
+                    clazz = Class.forName(aClass.getName(), false, classLoader);
                 } catch (ClassNotFoundException e) {
                     // ignore
                 }
                 /*
-                 * Verify that the Class object actually represents an interface.
+                 * Verify that the Class object actually represents an interface or a class.
                  */
-                if (aClass != interfaceClass) {
+                if (aClass != clazz) {
                     throw new IllegalArgumentException(aClass + " is not visible from class loader");
                 }
                 /*
                  * Verify that this interface is not a duplicate
                  */
-                if (interfaceSet.put(interfaceClass, Boolean.TRUE) != null) {
-                    throw new IllegalArgumentException("repeated interface: " + interfaceClass.getName());
+                if (classSet.put(clazz, Boolean.TRUE) != null) {
+                    throw new IllegalArgumentException("repeated interface or class: " + clazz.getName());
                 }
             }
 
@@ -840,11 +663,13 @@ public final class NewProxy {
             int accessFlags = Modifier.PUBLIC | Modifier.FINAL;
 
             /*
-             * Record the package of a non-public proxy interface so that the
+             * Record the package of a non-public proxy interface or class so that the
              * proxy class will be defined in the same package. Verify that
-             * all non-public proxy interfaces are in the same package.
+             * all non-public proxy classes are in the same package.
+             *
+             * Generally, all non-public proxy interfaces or class should be in the same package.
              */
-            for (Class<?> aClass : interfaces) {
+            for (Class<?> aClass : classes) {
                 int flags = aClass.getModifiers();
                 if (!Modifier.isPublic(flags)) {
                     accessFlags = Modifier.FINAL;
@@ -854,12 +679,12 @@ public final class NewProxy {
                     if (proxyPkg == null) {
                         proxyPkg = pkg;
                     } else if (!pkg.equals(proxyPkg)) {
-                        throw new IllegalArgumentException("non-public interfaces from different packages");
+                        throw new IllegalArgumentException("non-public classes from different packages");
                     }
                 }
             }
             if (proxyPkg == null) {
-                // if no non-public proxy interfaces, use default package name
+                // if no non-public proxy classes, use default package name
                 proxyPkg = NewProxy.class.getPackage() + ".";
             }
             if (proxyPkg.startsWith("package ")) {
@@ -873,7 +698,7 @@ public final class NewProxy {
             /*
              * Generate the specified proxy class
              */
-            byte[] proxyClassFile = ProxyGenerator.generate(proxyClassName, accessFlags, interfaces);
+            byte[] proxyClassFile = ProxyGenerator.generate(proxyClassName, accessFlags, classes);
             try {
                 return (Class<?>) defineClass.invoke(Proxy.class, classLoader, proxyClassName, proxyClassFile, 0, proxyClassFile.length);
             } catch (IllegalAccessException e) {

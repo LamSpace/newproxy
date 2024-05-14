@@ -219,6 +219,11 @@ public final class Constants {
     public static final String METHOD_GET_NAME = "getName";
 
     /**
+     * name of methods implemented from interface.
+     */
+    public static final String METHOD_DO_INVOKE = "doInvoke";
+
+    /**
      * field name in generated dynamic proxy class which represents an {@link InvocationInterceptor} instance
      */
     public static final String FIELD_INTERCEPTOR = "interceptor";

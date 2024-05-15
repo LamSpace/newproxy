@@ -24,7 +24,11 @@ import java.lang.reflect.Method;
  * {@link #dispatch(Object, Method, Object...) dispatch} method will be invoked to dispatch the method invocations
  * depending on whether the declaring class of the method is interface or not. If the declaring class is an interface,
  * then method invocation will be dispatched to the implementation which implemented the interface. Otherwise,
- * method invocation will be dispatched to the superclass of the proxy class.
+ * method invocation will be dispatched to the superclass of the proxy class.<br/>
+ * Generally, this interface must be implemented by generated dynamic proxy class automatically
+ * via byte code generation technology, enabling method invocation to be dispatched to an appropriate implementation.
+ * And this interface is also a mark interface to indicate if the specified class is a proxy class or not, see in
+ * {@link NewProxy#isProxyClass(Class)}.
  *
  * @author Lam Tong
  * @version 1.0.0
@@ -38,12 +42,12 @@ public interface InvocationDispatcher {
      *
      * @param object object on which the method was invoked. If the declaring class of the method is an interface,
      *               then the object will be the actual implementation of that interface. Otherwise, the object will
-     *               be the proxy instance itself.
-     * @param method the {@link Method} instance corresponding to the method invoked on the proxy instance.
+     *               be the proxy instance itself
+     * @param method the {@link Method} instance corresponding to the method invoked on the proxy instance
      * @param args   an array of objects containing the values of the arguments passed in the method invocation
      *               on the proxy instance, or {@code null} if this method takes no arguments. Arguments of primitive
      *               types are wrapped in instances of the appropriate primitive wrapper class, such as
-     *               {@link Integer} or {@link Boolean}.
+     *               {@link Integer} or {@link Boolean}
      * @return the value to return from the method invocation on the proxy instance. If the declared return type is
      * a primitive type, then the value returned by this method must be an instance of the corresponding primitive
      * wrapper class; otherwise, it must be a type assignable to the declared return type. If the value returned by

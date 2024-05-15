@@ -45,7 +45,7 @@ public final class MethodDecorator {
      * Static factory method to create a {@link MethodDecorator} instance.
      *
      * @param method {@link Method} instance
-     * @return {@link MethodDecorator} instance
+     * @return {@link MethodDecorator} instance.
      */
     public static MethodDecorator of(Method method) {
         return new MethodDecorator(method);
@@ -54,7 +54,7 @@ public final class MethodDecorator {
     /**
      * Get the decorated {@link Method} instance.
      *
-     * @return {@link Method} instance
+     * @return {@link Method} instance.
      */
     public Method getMethod() {
         return this.method;
@@ -64,8 +64,11 @@ public final class MethodDecorator {
      * Invokes the underlying method represented by this {@link MethodDecorator} object, on the specified object with
      * the specified parameters. Individual parameters are automatically unwrapped to match primitive formal parameters,
      * and both primitive and reference parameters are subject to method invocation conversions as necessary.<br/>
-     * Typically, the underlying method should be {@code public} and not {@code static}, since dynamic proxy class does
-     * not support {@code static} methods.<br/>
+     * If the underlying method's declaring class is a class, then method invocation should be encoded and dispatched
+     * to the superclass of the proxy class. Otherwise, method invocation should be encoded and dispatched to
+     * the implementation of the interface, which is implemented by the proxy class.<br/>
+     * Typically, the underlying method should be {@code public} and not {@code static} or not {@code final},
+     * since dynamic proxy class does not support {@code static} or {@code final} methods.<br/>
      * If the number of formal parameters required by the underlying method is zero, the supplier {@code args} array
      * may be of length zero, or null.<br/>
      * If the method completes normally, the value it returns is returned to the caller of invocation; if the value
@@ -76,13 +79,18 @@ public final class MethodDecorator {
      *
      * @param proxy  the proxy instance from which the underlying method is invoked
      * @param object actual object to be invoked. Required when the declaring class of the method is interface, and
-     *               this object usually is an implementation of that interface.
+     *               this object usually is an implementation of that interface
      * @param args   the arguments used for the method invocation
-     * @return the result from which the method invocation returns
-     * @throws Throwable //todo
+     * @return the result from which the method invocation returns.
+     * @throws Throwable the exception to throw from the method invocation on the proxy instance,
+     *                   thrown by {@link InvocationDispatcher#dispatch(Object, Method, Object...)}.
+     * @see InvocationDispatcher#dispatch(Object, Method, Object...)
      */
     @CallerSensitive
     public Object invoke(Object proxy, Object object, Object... args) throws Throwable {
+        if (!(proxy instanceof InvocationDispatcher)) {
+            throw new IllegalArgumentException("proxy must implement interface InvocationDispatcher");
+        }
         InvocationDispatcher dispatcher = ((InvocationDispatcher) proxy);
         if (this.method.getDeclaringClass().isInterface()) {
             return dispatcher.dispatch(object, this.method, args);

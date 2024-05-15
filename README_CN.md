@@ -79,7 +79,6 @@ public static void main(String[] args) {
 
 ---
 
-### 样例 2: 为类生成动态代理类, 其基类(或父类)的构造方法没有参数
 
 ```java
 public class Bar {

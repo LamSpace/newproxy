@@ -46,31 +46,36 @@ import static io.github.lamspace.newproxy.Constants.*;
  * To create a dynamic proxy class for interface {@code Foo}, {@link ProxyGenerator} would generate a proxy class as
  * below:
  * <blockquote><pre>
- * public final class $NewProxy0 implements Foo {
- *     private static final Method m0;
- *     private static final Method m1;
- *     private static final Method m2;
- *     // other Method type fields
- *     private final InvocationHandler handler;
+ * public interface Foo {
+ *     void foo();
+ * }
+ * </pre></blockquote>
+ * <blockquote><pre>
+ * public final class $NewProxy0 implements Foo, InvocationDispatcher {
+ *     private static final MethodDecorator m0;
+ *     private static final MethodDecorator m1;
+ *     private static final MethodDecorator m2;
+ *     private static final MethodDecorator m3;
+ *     private final InvocationInterceptor interceptor;
  *
  *     static {
  *         try {
- *             m0 = Class.forName("java.lang.Object").getMethod("equals", Object.class);
- *             m1 = Class.forName("java.lang.Object").getMethod("hashCode");
- *             m2 = Class.forName("java.lang.Object").getMethod("toString");
- *             // other static fields initialization
+ *             m0 = MethodDecorator.of(Class.forName("java.lang.Object").getMethod("equals", Object.class));
+ *             m1 = MethodDecorator.of(Class.forName("java.lang.Object").getMethod("hashCode"));
+ *             m2 = MethodDecorator.of(Class.forName("java.lang.Object").getMethod("toString"));
+ *             m3 = MethodDecorator.of(Class.forName("full-qualified-name-of-Foo").getMethod("foo"));
  *         } catch (Exception e) {
  *             // process exception here
  *         }
  *     }
  *
- *     public $NewProxy0(InvocationHandler handler) {
- *         this.handler = handler;
+ *     public $NewProxy0(InvocationInterceptor interceptor) {
+ *         this.interceptor = interceptor;
  *     }
  *
  *     public final boolean equals(Object o) {
  *         try {
- *             return (Boolean) this.handler.invoke(this, m0, new Object[]{o});
+ *             return (Boolean) this.interceptor.intercept(this, m0, new Object[]{o});
  *         } catch (Exception e) {
  *             // process exception here
  *         }
@@ -78,7 +83,7 @@ import static io.github.lamspace.newproxy.Constants.*;
  *
  *     public final int hashCode() {
  *         try {
- *             return (Integer) this.handler.invoke(this, m1, (Object[]) null);
+ *             return (Integer) this.interceptor.intercept(this, m1, (Object[]) null);
  *         } catch (Exception e) {
  *             // process exception here
  *         }
@@ -86,24 +91,53 @@ import static io.github.lamspace.newproxy.Constants.*;
  *
  *     public final String toString() {
  *         try {
- *             return (String) this.handler.invoke(this, m2, (Object[]) null);
+ *             return (String) this.interceptor.intercept(this, m2, (Object[]) null);
  *         } catch (Exception e) {
  *             // process exception here
  *         }
  *     }
  *
- *     // other methods implementation from interface Foo here
+ *     public final void foo() {
+ *         try {
+ *             this.interceptor.intercept(this, m3, (Object[]) null);
+ *         }  catch (Exception e) {
+ *             // process exception here
+ *         }
+ *     }
+ *
+ *     public final Object dispatch(Object object, Method method, Object[] args) {
+ *         String var4 = ProxyGenerator.getMethodSignature(method);
+ *         if ("equals;boolean;[java.lang.Object arg0]".equals(var4)) {
+ *             return super.equals(args[0]);
+ *         } else if ("hashCode;int;[]".equals(var4)) {
+ *             return super.hashCode();
+ *         } else if ("toString;class java.lang.String;[]".equals(var4)) {
+ *             return super.toString();
+ *         } else if ("foo;void;[]".equals(var4)) {
+ *             this.doInvokeFoo(object);
+ *             return null;
+ *         }
+ *         return null;
+ *     }
+ *
+ *     private void doInvokeFoo(Object object) {
+ *         MethodHandle var3 = MethodHandles.lookup().findVirtual(Foo.class, "foo", MethodType.methodType(Void.TYPE)).bindTo(object);
+ *         var3.invokeExact();
+ *     }
  *
  * }
- * </pre></blockquote>
- * Note that class format can be divided into four parts as below:
+ * </pre></blockquote><br/>
+ * Note that class format can be divided into six parts as below:
  * <ol>
  *     <li>Static variables in a proxy class.</li>
  *     <li>Static variables initialization in a proxy class, using try-catch block.</li>
  *     <li>Default constructor of the proxy class with public modifier which initialize an instance field
- *     with name "handler", whose type is {@link InvocationInterceptor}.</li>
- *     <li>Implementation of methods overridden from interfaces and {@code equals}, {@code hashCode}
+ *     with name "interceptor", whose type is {@link InvocationInterceptor}.</li>
+ *     <li>Implementation of methods overridden from interfaces (class also) and {@code equals}, {@code hashCode}
  *     and {@code toString} from {@code java.lang.Object}.</li>
+ *     <li>Implementation of interface {@link InvocationDispatcher} to
+ *     {@link InvocationDispatcher#dispatch(Object, Method, Object...) dispatch} method invocation.</li>
+ *     <li>Method invocation for method inherits from interfaces, using {@code java.lang.invoke} API.</li>
  * </ol><br/>
  *
  * <h3>Procedure to Generate Dynamic Proxy Class</h3>
@@ -117,9 +151,13 @@ import static io.github.lamspace.newproxy.Constants.*;
  *     <li>Initializes static variables in a proxy class in a static initializer.</li>
  *     <li>Generates the default constructor of this proxy class with modifier {@code public}, which needs a
  *     parameter of type {@link InvocationInterceptor}, and that parameter will be assigned to an instance filed
- *     of type {@link InvocationInterceptor} with name "handler", which process methods invocations of a proxy class.</li>
- *     <li>Implements all methods originate from interfaces with three methods from {@code java.lang.Object}:
- *     {@code equals}, {@code hashCode} and {@code toString}.</li>
+ *     of type {@link InvocationInterceptor} with name "interceptor", which process methods invocations of a proxy
+ *     class.</li>
+ *     <li>Implements all methods originate from interfaces (and class) with three methods from
+ *     {@code java.lang.Object}: {@code equals}, {@code hashCode} and {@code toString}.</li>
+ *     <li>Implements method from interface {@link InvocationDispatcher} to dispatch method invocation to
+ *     appropriate execution logic.</li>
+ *     <li>Implements method invocation for method inherits from interfaces, using {@code java.lang.invoke} API.</li>
  *     <li>Exports generated proxy class in an array of byte.</li>
  * </ol>
  *
@@ -143,10 +181,19 @@ public final class ProxyGenerator {
      */
     private static final ThreadLocal<LinkedHashMap<Method, String>> METHOD_CACHE = new ThreadLocal<>();
 
+    /**
+     * Generates a dynamic proxy class for specified classes with given proxy class name and modifiers.
+     *
+     * @param proxyClass the proxy class name
+     * @param accessFlag the proxy class modifier
+     * @param classes    the classes to be implemented or extends for the proxy class
+     * @return a proxy class in an array of byte
+     * @throws IllegalArgumentException if the specified classes contain a base class to be extended and that class
+     *                                  is {@code private}, {@code abstract} or {@code final}.
+     * @throws RuntimeException         if generation exception occurs, or exception occurs when dump generated
+     *                                  byte array.
+     */
     public static byte[] generate(String proxyClass, int accessFlag, Class<?>[] classes) {
-        proxyClassName.set(proxyClass);
-        METHOD_CACHE.set(new LinkedHashMap<>());
-
         // Checks if the specified classes contain a base class to be extended or not.
         // If so, the proxy class will extend the base class.
         Class<?> parentClass = findClass(classes);
@@ -155,19 +202,20 @@ public final class ProxyGenerator {
             int modifiers = parentClass.getModifiers();
             // fixme: what kind of class can be extended? Should static class be extended or not?
             if (Modifier.isPrivate(modifiers)) {
-                throw new RuntimeException("Class [" + parentClass.getName() + "] is private");
+                throw new IllegalArgumentException("Class [" + parentClass.getName() + "] is private");
             }
             if (Modifier.isAbstract(modifiers)) {
-                throw new RuntimeException("Class [" + parentClass.getName() + "] is abstract");
+                throw new IllegalArgumentException("Class [" + parentClass.getName() + "] is abstract");
             }
             if (Modifier.isFinal(modifiers)) {
-                throw new RuntimeException("Class [" + parentClass.getName() + "] is final");
+                throw new IllegalArgumentException("Class [" + parentClass.getName() + "] is final");
             }
-            classGen = new ClassGen(proxyClassName.get(), parentClass.getName(), "<generated>", accessFlag, extractNamesFromInterfaces(filterClass(classes)));
+            classGen = new ClassGen(proxyClass, parentClass.getName(), "<generated>", accessFlag, extractNamesFromInterfaces(filterClass(classes)));
         } else {
-            classGen = new ClassGen(proxyClassName.get(), Object.class.getName(), "<generated>", accessFlag, extractNamesFromInterfaces(classes));
+            classGen = new ClassGen(proxyClass, Object.class.getName(), "<generated>", accessFlag, extractNamesFromInterfaces(classes));
         }
-
+        proxyClassName.set(proxyClass);
+        METHOD_CACHE.set(new LinkedHashMap<>());
         try {
             ConstantPoolGen constantPool = classGen.getConstantPool();
             classGen.setMinor(Const.MINOR_1_8);
@@ -180,7 +228,7 @@ public final class ProxyGenerator {
             generateStaticVariables(classGen, constantPool, classes);
 
             // initialize static variable for proxy class in static initializer
-            initializeStaticVariables(classGen, constantPool);
+            generateStaticVariableInitializer(classGen, constantPool);
 
             // generate default constructor for proxy class
             generateDefaultConstructor(classGen, constantPool, parentClass);
@@ -191,7 +239,7 @@ public final class ProxyGenerator {
             // generate implementation of interface InvocationDispatcher to encode and dispatch method invocation
             generateDispatchMethod(classGen, constantPool);
         } catch (Exception e) {
-            throw new RuntimeException("exception with message: " + e.getMessage());
+            throw new RuntimeException("exception with message: " + e.getMessage() + "for proxy class" + proxyClass, e);
         } finally {
             proxyClassName.remove();
             METHOD_CACHE.remove();
@@ -243,6 +291,12 @@ public final class ProxyGenerator {
                 .toArray(Class<?>[]::new);
     }
 
+    /**
+     * Extracts the names of interfaces from the specified classes.
+     *
+     * @param interfaces the list of interfaces to be implemented by proxy class
+     * @return an array of interface names.
+     */
     private static String[] extractNamesFromInterfaces(Class<?>[] interfaces) {
         String[] res = new String[interfaces.length + 1];
         for (int i = 0; i < interfaces.length; i++) {
@@ -252,6 +306,18 @@ public final class ProxyGenerator {
         return res;
     }
 
+    /**
+     * Generates default {@code private} {@code static} {@code final} variables of type {@link MethodDecorator} for proxy class.
+     * Mapping relationship can be listed as below:
+     * <ul>
+     *     <li>m0 -> MethodDecorator.of(Class.forName("java.lang.Object").getMethod("equals", Object.class))</li>
+     *     <li>m1 -> MethodDecorator.of(Class.forName("java.lang.Object").getMethod("hashCode"))</li>
+     *     <li>m2 -> MethodDecorator.of(Class.forName("java.lang.Object").getMethod("toString"))</li>
+     * </ul>
+     *
+     * @param classGen     {@link ClassGen} instance
+     * @param constantPool {@link ConstantPoolGen} instance
+     */
     private static void generateDefaultStaticVariables(ClassGen classGen, ConstantPoolGen constantPool) {
         int modifiers = Const.ACC_PRIVATE | Const.ACC_STATIC | Const.ACC_FINAL;
         ObjectType objectType = new ObjectType(MethodDecorator.class.getName());
@@ -263,6 +329,13 @@ public final class ProxyGenerator {
         classGen.addField(m2);
     }
 
+    /**
+     * Generates static variables of type {@link MethodDecorator} for proxy class.
+     *
+     * @param classGen     {@link ClassGen} instance
+     * @param constantPool {@link ConstantPoolGen} instance
+     * @param classes      the list of classes to extract methods to enhance
+     */
     private static void generateStaticVariables(ClassGen classGen, ConstantPoolGen constantPool, Class<?>[] classes) {
         generateDefaultStaticVariables(classGen, constantPool);
         try {
@@ -306,6 +379,12 @@ public final class ProxyGenerator {
         }
     }
 
+    /**
+     * Gets method signature, including three parts: method name, return type, parameter types.
+     *
+     * @param method the method to get signature
+     * @return method signature in {@code String}
+     */
     public static String getMethodSignature(Method method) {
         String name = method.getName();
         Class<?> returnType = method.getReturnType();
@@ -313,7 +392,13 @@ public final class ProxyGenerator {
         return name + ";" + returnType + ";" + Arrays.toString(parameters);
     }
 
-    private static void initializeStaticVariables(ClassGen classGen, ConstantPoolGen constantPool) {
+    /**
+     * Generates static variable initializer for proxy class using {@code try-catch} block.
+     *
+     * @param classGen     {@link ClassGen} instance
+     * @param constantPool {@link ConstantPoolGen} instance
+     */
+    private static void generateStaticVariableInitializer(ClassGen classGen, ConstantPoolGen constantPool) {
         InstructionList list = new InstructionList();
         InstructionFactory factory = new InstructionFactory(constantPool);
         MethodGen methodGen = new MethodGen(Const.ACC_STATIC, Type.VOID, Type.NO_ARGS, null, METHOD_CL_INIT, proxyClassName.get(), list, constantPool);
@@ -393,6 +478,12 @@ public final class ProxyGenerator {
         list.dispose();
     }
 
+    /**
+     * Transforms primitive types to wrapper types.
+     *
+     * @param type the primitive type to transform
+     * @return the wrapper type
+     */
     private static Class<?> transformPrimitiveTypesToWrapperTypes(Class<?> type) {
         if (byte.class == type) {
             return Byte.class;
@@ -415,16 +506,42 @@ public final class ProxyGenerator {
         }
     }
 
+    /**
+     * Generates the default constructor for the proxy class.
+     *
+     * @param classGen     {@link ClassGen} instance
+     * @param constantPool {@link ConstantPoolGen} instance
+     * @param parentClass  the parent class to extend for the proxy class
+     */
     private static void generateDefaultConstructor(ClassGen classGen, ConstantPoolGen constantPool, Class<?> parentClass) {
         FieldGen handlerFieldGen = new FieldGen(Const.ACC_PRIVATE | Const.ACC_FINAL, new ObjectType(InvocationInterceptor.class.getName()), FIELD_INTERCEPTOR, constantPool);
         classGen.addField(handlerFieldGen.getField());
 
         InstructionList list = new InstructionList();
         InstructionFactory factory = new InstructionFactory(constantPool);
-        MethodGen methodGen = new MethodGen(Const.ACC_PUBLIC, Type.VOID, new Type[]{new ObjectType(InvocationInterceptor.class.getName())}, new String[]{FIELD_INTERCEPTOR}, METHOD_INIT, proxyClassName.get(), list, constantPool);
+
+        // If the parent class has a constructor with parameters, then "super" should be called in constructor first.
+        Class<?>[] parameterTypes = NewProxy.ARG_TYPES.get();
+        Type[] parameterTypesArray = new Type[parameterTypes.length + 1];
+        String[] parameterNames = new String[parameterTypes.length + 1];
+        for (int i = 0; i < parameterTypes.length; i++) {
+            parameterTypesArray[i + 1] = new ObjectType(parameterTypes[i].getName());
+            parameterNames[i + 1] = "arg" + i;
+        }
+        parameterTypesArray[0] = new ObjectType(InvocationInterceptor.class.getName());
+        parameterNames[0] = FIELD_INTERCEPTOR;
+
+        MethodGen methodGen = new MethodGen(Const.ACC_PUBLIC, Type.VOID, parameterTypesArray, parameterNames, METHOD_INIT, proxyClassName.get(), list, constantPool);
         list.append(new ALOAD(0));
+        for (int i = 0; i < parameterTypes.length; i++) {
+            list.append(new ALOAD(i + 2));
+        }
         if (parentClass != null) {
-            list.append(factory.createInvoke(parentClass.getName(), METHOD_INIT, Type.VOID, Type.NO_ARGS, Const.INVOKESPECIAL));
+            Type[] args = new Type[parameterTypes.length];
+            for (int i = 0; i < args.length; i++) {
+                args[i] = getTypeFromClass(parameterTypes[i]);
+            }
+            list.append(factory.createInvoke(parentClass.getName(), METHOD_INIT, Type.VOID, args, Const.INVOKESPECIAL));
         } else {
             list.append(factory.createInvoke(Object.class.getName(), METHOD_INIT, Type.VOID, Type.NO_ARGS, Const.INVOKESPECIAL));
         }
@@ -439,6 +556,12 @@ public final class ProxyGenerator {
         list.dispose();
     }
 
+    /**
+     * Generates the enhanced methods for the proxy class.
+     *
+     * @param classGen     {@link ClassGen} instance
+     * @param constantPool {@link ConstantPoolGen} instance
+     */
     private static void generateMethods(ClassGen classGen, ConstantPoolGen constantPool) {
         InstructionList list = new InstructionList();
         for (Method method : METHOD_CACHE.get().keySet()) {
@@ -585,6 +708,12 @@ public final class ProxyGenerator {
         }
     }
 
+    /**
+     * Get the {@link Type} from the class.
+     *
+     * @param clazz the class to get the {@link Type} from
+     * @return the {@link Type}
+     */
     private static Type getTypeFromClass(Class<?> clazz) {
         Type return_type;
         // Check if the return type is primitive
@@ -617,6 +746,13 @@ public final class ProxyGenerator {
         return return_type;
     }
 
+    /**
+     * Generate the dispatch method inherited from interface {@link InvocationDispatcher}.
+     *
+     * @param classGen     the {@link ClassGen} instance
+     * @param constantPool the {@link ConstantPoolGen} instance
+     * @throws NoSuchMethodException if the method is not found when acquiring {@link Method} instances.
+     */
     @SuppressWarnings(value = {"DuplicatedCode"})
     private static void generateDispatchMethod(ClassGen classGen, ConstantPoolGen constantPool) throws NoSuchMethodException {
         Set<String> set = new HashSet<String>() {{
@@ -861,6 +997,13 @@ public final class ProxyGenerator {
         list.dispose();
     }
 
+    /**
+     * generate doInvoke method for which inherit from interfaces.
+     *
+     * @param classGen     {@link ClassGen} instance
+     * @param constantPool {@link ConstantPoolGen} instance
+     * @param method       {@link Method} instance, which inherit from interfaces
+     */
     private static void generateDoInvokeMethod(ClassGen classGen, ConstantPoolGen constantPool, Method method) {
         String methodName = method.getName(), doMethodName = METHOD_DO_INVOKE + StringUtils.capitalize(methodName);
         Class<?> returnType = method.getReturnType();

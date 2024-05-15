@@ -25,7 +25,6 @@ import java.lang.reflect.UndeclaredThrowableException;
  *
  * @author Lam Tong
  * @version 1.0.0
- * @see ProxyGenerator
  * @since 1.0.0
  */
 public final class Constants {
@@ -212,11 +211,6 @@ public final class Constants {
      * name of {@link Short#shortValue()} method
      */
     public static final String METHOD_SHORT_VALUE = "shortValue";
-
-    /**
-     * name of {@link Method#getName()} method
-     */
-    public static final String METHOD_GET_NAME = "getName";
 
     /**
      * name of methods implemented from interface.

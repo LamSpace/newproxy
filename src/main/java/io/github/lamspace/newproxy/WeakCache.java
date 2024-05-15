@@ -75,7 +75,7 @@ final class WeakCache<K, P, V> {
      *
      * @param key       possibly null key
      * @param parameter parameter used together with a key to create sub-key and value (should not be null)
-     * @return the cached value (never null)
+     * @return the cached value (never null).
      * @throws NullPointerException if {@code parameter} passed in or {@code sub-key} calculated by
      *                              {@code subKeyFactory} or {@code value} calculated by {@code valueFactory} is null.
      */
@@ -142,7 +142,7 @@ final class WeakCache<K, P, V> {
      * {@link Object#equals(Object)} or not.
      *
      * @param value the non-null value to check
-     * @return true if given {@code value} is already cached
+     * @return true if given {@code value} is already cached.
      * @throws NullPointerException if value is null
      */
     public boolean containsValue(V value) {
@@ -154,7 +154,7 @@ final class WeakCache<K, P, V> {
     /**
      * Returns the current number of cached entries that can decrease over tine when keys/values are GC-ed.
      *
-     * @return current number of cached entries
+     * @return current number of cached entries.
      */
     public int size() {
         expungeStaleEntries();

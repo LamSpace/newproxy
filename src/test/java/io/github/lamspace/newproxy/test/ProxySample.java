@@ -2,6 +2,10 @@ package io.github.lamspace.newproxy.test;
 
 public class ProxySample {
 
+    public ProxySample(String s) {
+        System.out.println("Constructor: " + s);
+    }
+
     public void sayHi() {
         System.out.println("Hi");
     }

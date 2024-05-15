@@ -17,13 +17,12 @@
 package io.github.lamspace.newproxy;
 
 /**
- * {@link InvocationInterceptor} is the interface implemented by the invocation handler of a proxy instance.
- * Each proxy instance has an associated invocation handler. When a method is invoked on a proxy instance,
+ * {@link InvocationInterceptor} is the interface implemented by the invocation interceptor of a proxy instance.
+ * Each proxy instance has an associated invocation interceptor. When a method is invoked on a proxy instance,
  * the method invocation is encoded and dispatched to the {@link #intercept(Object, MethodDecorator, Object[])
- * intercept} method of its invocation handler.<br/>
+ * intercept} method of its invocation interceptor.<br/>
  * Generally, {@link InvocationInterceptor} works as the same as {@link java.lang.reflect.InvocationHandler} while the
- * former one decorates the method instance, enabling the invocation of the method with custom logic without
- * {@code Reflection}.
+ * former one decorates the method instance.
  *
  * @author Lam Tong
  * @version 1.0.0
@@ -40,11 +39,11 @@ public interface InvocationInterceptor {
      * @param method the {@link MethodDecorator} instance corresponding to the method invoked on the proxy instance.
      *               The declaring class of the {@link MethodDecorator} object will be the interface that the method
      *               was declared in, which may be a superinterface of the proxy interface that the proxy class
-     *               inherits the method through.
+     *               inherits the method through
      * @param args   an array of objects containing the values of the arguments passed in the method invocation
      *               on the proxy instance, or {@code null} if this method takes no arguments. Arguments of primitive
      *               types are wrapped in instances of the appropriate primitive wrapper class, such as
-     *               {@link Integer} or {@link Boolean}.
+     *               {@link Integer} or {@link Boolean}
      * @return the value to return from the method invocation on the proxy instance. If the declared return type is
      * a primitive type, then the value returned by this method must be an instance of the corresponding primitive
      * wrapper class; otherwise, it must be a type assignable to the declared return type. If the value returned by

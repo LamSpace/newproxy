@@ -1083,7 +1083,7 @@ public final class ProxyGenerator {
                         list.append(new GETSTATIC(constantPool.addFieldref(Void.class.getName(), FIELD_TYPE, SIGNATURE_CLASS)));
                     }
                 } else {
-                    list.append(new LDC(constantPool.addClass(returnType.getName())));
+                    list.append(new LDC(constantPool.addClass(parameter.getType().getName())));
                 }
                 list.append(new AASTORE());
             }

@@ -525,7 +525,7 @@ public final class ProxyGenerator {
         Type[] parameterTypesArray = new Type[parameterTypes.length + 1];
         String[] parameterNames = new String[parameterTypes.length + 1];
         for (int i = 0; i < parameterTypes.length; i++) {
-            parameterTypesArray[i + 1] = new ObjectType(parameterTypes[i].getName());
+            parameterTypesArray[i + 1] = getTypeFromClass(parameterTypes[i]);
             parameterNames[i + 1] = "arg" + i;
         }
         parameterTypesArray[0] = new ObjectType(InvocationInterceptor.class.getName());
@@ -534,7 +534,26 @@ public final class ProxyGenerator {
         MethodGen methodGen = new MethodGen(Const.ACC_PUBLIC, Type.VOID, parameterTypesArray, parameterNames, METHOD_INIT, proxyClassName.get(), list, constantPool);
         list.append(new ALOAD(0));
         for (int i = 0; i < parameterTypes.length; i++) {
-            list.append(new ALOAD(i + 2));
+            Class<?> parameterType = parameterTypes[i];
+            if (parameterType.equals(boolean.class)) {
+                list.append(new ILOAD(i + 2));
+            } else if (parameterType.equals(byte.class)) {
+                list.append(new ILOAD(i + 2));
+            } else if (parameterType.equals(char.class)) {
+                list.append(new ILOAD(i + 2));
+            } else if (parameterType.equals(short.class)) {
+                list.append(new ILOAD(i + 2));
+            } else if (parameterType.equals(int.class)) {
+                list.append(new ILOAD(i + 2));
+            } else if (parameterType.equals(long.class)) {
+                list.append(new LLOAD(i + 2));
+            } else if (parameterType.equals(float.class)) {
+                list.append(new FLOAD(i + 2));
+            } else if (parameterType.equals(double.class)) {
+                list.append(new DLOAD(i + 2));
+            } else {
+                list.append(new ALOAD(i + 2));
+            }
         }
         if (parentClass != null) {
             Type[] args = new Type[parameterTypes.length];

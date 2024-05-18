@@ -48,6 +48,11 @@ public final class Constants {
     public static final String SIGNATURE_INVOCATION_INTERCEPTOR = "Lio/github/lamspace/newproxy/InvocationInterceptor;";
 
     /**
+     * signature for {@link java.lang.invoke.MethodHandle} type instance variable in String format
+     */
+    public static final String SIGNATURE_METHOD_HANDLE = "Ljava/lang/invoke/MethodHandle;";
+
+    /**
      * full-qualified class name for class {@link Object}
      */
     public static final String CLASS_OBJECT = Object.class.getName();

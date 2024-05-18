@@ -775,9 +775,9 @@ public final class ProxyGenerator {
     @SuppressWarnings(value = {"DuplicatedCode"})
     private static void generateDispatchMethod(ClassGen classGen, ConstantPoolGen constantPool) throws NoSuchMethodException {
         Set<String> set = new HashSet<String>() {{
-            add("equals");
-            add("hashCode");
-            add("toString");
+            add(METHOD_EQUALS);
+            add(METHOD_HASH_CODE);
+            add(METHOD_TO_STRING);
         }};
         List<Method> methods = METHOD_CACHE.get()
                 .keySet()
@@ -799,7 +799,7 @@ public final class ProxyGenerator {
 
         // equals, hashCode and toString whose declaring class is Object.class
         // Object.equals(Object o)
-        list.append(new LDC(constantPool.addString(getMethodSignature(Object.class.getMethod("equals", Object.class)))));
+        list.append(new LDC(constantPool.addString(getMethodSignature(Object.class.getMethod(METHOD_EQUALS, Object.class)))));
         list.append(new ALOAD(4));
         list.append(factory.createInvoke(String.class.getName(), METHOD_EQUALS, Type.BOOLEAN, new Type[]{Type.OBJECT}, Const.INVOKEVIRTUAL));
         ifCondition = new IFEQ(null);
@@ -813,7 +813,7 @@ public final class ProxyGenerator {
         list.append(new ARETURN());
 
         // Object.hashCode()
-        cur = list.append(new LDC(constantPool.addString(getMethodSignature(Object.class.getMethod("hashCode")))));
+        cur = list.append(new LDC(constantPool.addString(getMethodSignature(Object.class.getMethod(METHOD_HASH_CODE)))));
         ifCondition.setTarget(cur);
         list.append(new ALOAD(4));
         list.append(factory.createInvoke(String.class.getName(), METHOD_EQUALS, Type.BOOLEAN, new Type[]{Type.OBJECT}, Const.INVOKEVIRTUAL));
@@ -829,7 +829,7 @@ public final class ProxyGenerator {
         pre = cur;
 
         // Object.toString()
-        cur = list.append(new LDC(constantPool.addString(getMethodSignature(Object.class.getMethod("toString")))));
+        cur = list.append(new LDC(constantPool.addString(getMethodSignature(Object.class.getMethod(METHOD_TO_STRING)))));
         ifCondition.setTarget(cur);
         list.append(new ALOAD(4));
         list.append(factory.createInvoke(String.class.getName(), METHOD_EQUALS, Type.BOOLEAN, new Type[]{Type.OBJECT}, Const.INVOKEVIRTUAL));
@@ -1028,6 +1028,10 @@ public final class ProxyGenerator {
         Class<?> returnType = method.getReturnType();
         Parameter[] parameters = method.getParameters();
 
+        String methodHandleFieldName = "mh" + StringUtils.capitalize(methodName);
+        FieldGen fieldGen = new FieldGen(Const.ACC_PRIVATE | Const.ACC_VOLATILE, new ObjectType(MethodHandle.class.getName()), methodHandleFieldName, constantPool);
+        classGen.addField(fieldGen.getField());
+
         InstructionList list = new InstructionList();
         InstructionFactory factory = new InstructionFactory(constantPool);
 
@@ -1042,6 +1046,19 @@ public final class ProxyGenerator {
         }
         MethodGen methodGen = new MethodGen(Const.ACC_PRIVATE, getTypeFromClass(returnType), argsType, argsName, doMethodName, proxyClassName.get(), list, constantPool);
 
+        list.append(new ALOAD(0));
+        list.append(new GETFIELD(constantPool.addFieldref(proxyClassName.get(), methodHandleFieldName, SIGNATURE_METHOD_HANDLE)));
+        IFNONNULL firstIfnonnull = new IFNONNULL(null);
+        list.append(firstIfnonnull);
+        list.append(new ALOAD(0));
+        list.append(new DUP());
+        list.append(new ASTORE(parameters.length == 0 ? 2 : 3));
+        list.append(new MONITORENTER());
+        InstructionHandle firstHandle = list.append(new ALOAD(0));
+        list.append(new GETFIELD(constantPool.addFieldref(proxyClassName.get(), methodHandleFieldName, SIGNATURE_METHOD_HANDLE)));
+        IFNONNULL secondIfnonnull = new IFNONNULL(null);
+        list.append(secondIfnonnull);
+        list.append(new ALOAD(0));
         list.append(factory.createInvoke(MethodHandles.class.getName(), "lookup", new ObjectType(MethodHandles.Lookup.class.getName()), Type.NO_ARGS, Const.INVOKESTATIC));
         list.append(new LDC(constantPool.addClass(method.getDeclaringClass().getName())));
         list.append(new LDC(constantPool.addString(methodName)));
@@ -1113,10 +1130,31 @@ public final class ProxyGenerator {
         list.append(new ALOAD(1));
         list.append(factory.createInvoke(MethodHandle.class.getName(), METHOD_BIND_TO, new ObjectType(MethodHandle.class.getName()), new Type[]{Type.OBJECT}, Const.INVOKEVIRTUAL));
 
-        if (parameters.length > 0) {
-            list.append(new ASTORE(3));
-            list.append(new ALOAD(3));
+        list.append(new PUTFIELD(constantPool.addFieldref(proxyClassName.get(), methodHandleFieldName, SIGNATURE_METHOD_HANDLE)));
+        InstructionHandle instructionHandle = list.append(new ALOAD(parameters.length == 0 ? 2 : 3));
+        secondIfnonnull.setTarget(instructionHandle);
+        list.append(new MONITOREXIT());
+        GOTO g = new GOTO(null);
+        BranchHandle secondHandle = list.append(g);
+        InstructionHandle cur = list.append(new ASTORE(parameters.length == 0 ? 3 : 4));
+        list.append(new ALOAD(parameters.length == 0 ? 2 : 3));
+        list.append(new MONITOREXIT());
+        InstructionHandle thirdHandle = list.append(new ALOAD(parameters.length == 0 ? 3 : 4));
+        list.append(new ATHROW());
+        InstructionHandle handle = list.append(new ALOAD(0));
+        g.setTarget(handle);
+        firstIfnonnull.setTarget(handle);
 
+        list.setPositions();
+        StackMapEntry[] entries = new StackMapEntry[]{
+                new StackMapEntry(Const.APPEND_FRAME, instructionHandle.getPosition(), new StackMapType[]{new StackMapType((byte) 7, constantPool.addClass(CLASS_OBJECT), constantPool.getConstantPool())}, new StackMapType[0], constantPool.getConstantPool()),
+                new StackMapEntry(Const.SAME_LOCALS_1_STACK_ITEM_FRAME + cur.getPosition() - instructionHandle.getPosition() - 1, cur.getPosition() - instructionHandle.getPosition() - 1, new StackMapType[0], new StackMapType[]{new StackMapType((byte) 7, constantPool.addClass(CLASS_THROWABLE), constantPool.getConstantPool())}, constantPool.getConstantPool()),
+                new StackMapEntry(Const.CHOP_FRAME_MAX, handle.getPosition() - cur.getPosition() - 1, new StackMapType[0], new StackMapType[0], constantPool.getConstantPool())
+        };
+
+        list.append(new GETFIELD(constantPool.addFieldref(proxyClassName.get(), methodHandleFieldName, SIGNATURE_METHOD_HANDLE)));
+
+        if (parameters.length > 0) {
             for (int i = 0; i < parameters.length; i++) {
                 Parameter parameter = parameters[i];
                 Class<?> type = parameter.getType();
@@ -1163,8 +1201,6 @@ public final class ProxyGenerator {
             }
             list.append(factory.createInvoke(MethodHandle.class.getName(), METHOD_INVOKE_EXACT, getTypeFromClass(returnType), types, Const.INVOKEVIRTUAL));
         } else {
-            list.append(new ASTORE(2));
-            list.append(new ALOAD(2));
             list.append(factory.createInvoke(MethodHandle.class.getName(), METHOD_INVOKE_EXACT, getTypeFromClass(returnType), Type.NO_ARGS, Const.INVOKEVIRTUAL));
         }
 
@@ -1192,11 +1228,15 @@ public final class ProxyGenerator {
             list.append(new ARETURN());
         }
 
+        // fixme: how to calculate the length of StackMap?
+        methodGen.addCodeAttribute(new StackMap(constantPool.addUtf8(STACK_MAP_TABLE), 15, entries, constantPool.getConstantPool()));
         methodGen.addException(CLASS_THROWABLE);
-        list.setPositions();
+        methodGen.addExceptionHandler(firstHandle, secondHandle, cur, null);
+        methodGen.addExceptionHandler(cur, thirdHandle, cur, null);
 
         methodGen.setMaxStack();
         methodGen.setMaxLocals();
+
         classGen.addMethod(methodGen.getMethod());
         list.dispose();
     }

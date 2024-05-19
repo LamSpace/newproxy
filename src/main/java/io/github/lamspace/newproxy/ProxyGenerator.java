@@ -136,7 +136,7 @@ import static io.github.lamspace.newproxy.Constants.*;
  *     <li>Implementation of methods overridden from interfaces (class also) and {@code equals}, {@code hashCode}
  *     and {@code toString} from {@code java.lang.Object}.</li>
  *     <li>Implementation of interface {@link InvocationDispatcher} to
- *     {@link InvocationDispatcher#dispatch(Object, Method, Object...) dispatch} method invocation.</li>
+ *     {@link InvocationDispatcher#dispatch(Object, MethodDecorator, Object...) dispatch} method invocation.</li>
  *     <li>Method invocation for method inherits from interfaces, using {@code java.lang.invoke} API.</li>
  * </ol><br/>
  *
@@ -257,7 +257,14 @@ public final class ProxyGenerator {
         if (System.getProperty(STRING_DUMP_FLAG, "false").equalsIgnoreCase("true")) {
             String dir = System.getProperty(STRING_DUMP_DIR, STRING_DUMP_DIR_DEFAULT);
             try {
-                javaClass.dump(dir + File.separator + proxyClass.substring(proxyClass.lastIndexOf('.') + 1) + ".class");
+                int index = proxyClass.lastIndexOf('.');
+                String pkg = proxyClass.substring(0, index + 1).replace(".", File.separator);
+                File file = new File(dir + File.separator + pkg);
+                if (!file.exists()) {
+                    //noinspection ResultOfMethodCallIgnored
+                    file.mkdirs();
+                }
+                javaClass.dump(dir + File.separator + pkg + proxyClass.substring(index + 1) + ".class");
             } catch (IOException e) {
                 throw new RuntimeException("exception when dumping class: " + proxyClass + ", message: " + e.getMessage());
             }
@@ -820,7 +827,6 @@ public final class ProxyGenerator {
         list.append(new ARETURN());
 
         list.setPositions();
-        // todo: 怎么写？
         entries[0] = new StackMapEntry(Const.APPEND_FRAME, cur.getPosition(), new StackMapType[]{new StackMapType(Const.ITEM_Integer, -1, constantPool.getConstantPool())}, new StackMapType[0], constantPool.getConstantPool());
         pre = cur;
 

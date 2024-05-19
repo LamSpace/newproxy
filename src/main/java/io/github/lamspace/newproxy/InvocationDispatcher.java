@@ -21,7 +21,7 @@ import java.lang.reflect.Method;
 /**
  * {@link InvocationDispatcher} is the interface implemented by the proxy class, enabling the proxy class dispatches
  * method invocations on the proxy instance. When a method is invoked on a proxy instance,
- * {@link #dispatch(Object, Method, Object...) dispatch} method will be invoked to dispatch the method invocations
+ * {@link #dispatch(Object, MethodDecorator, Object...) dispatch} method will be invoked to dispatch the method invocations
  * depending on whether the declaring class of the method is interface or not. If the declaring class is an interface,
  * then method invocation will be dispatched to the implementation which implemented the interface. Otherwise,
  * method invocation will be dispatched to the superclass of the proxy class.<br/>
@@ -63,6 +63,6 @@ public interface InvocationDispatcher {
      *                   {@link java.lang.reflect.UndeclaredThrowableException} containing the exception
      *                   thrown by this method will be thrown by the method invocation on the proxy instance.
      */
-    Object dispatch(Object object, Method method, Object... args) throws Throwable;
+    Object dispatch(Object object, MethodDecorator method, Object... args) throws Throwable;
 
 }

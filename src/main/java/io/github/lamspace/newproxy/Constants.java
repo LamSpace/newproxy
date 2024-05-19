@@ -252,4 +252,9 @@ public final class Constants {
      */
     public static final String STRING_DUMP_DIR_DEFAULT = "newproxy";
 
+    /**
+     * flag to indicate whether generate {@code doInvokeXXX} method or not
+     */
+    public static final String STRING_GENERATE_DO_INVOKE_METHOD = "io.github.lamspace.newproxy.doInvoke";
+
 }

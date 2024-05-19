@@ -20,10 +20,8 @@ import io.github.lamspace.newproxy.InvocationInterceptor;
 import io.github.lamspace.newproxy.NewProxy;
 import io.github.lamspace.newproxy.interfaces.BarService;
 import io.github.lamspace.newproxy.interfaces.FooService;
-import io.github.lamspace.newproxy.interfaces.JustClass;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Constructor;
@@ -186,21 +184,6 @@ public class NewProxyTest {
     }
 
     /**
-     * Case: try to generate a proxy interface with a class, and
-     * expect to throw an {@link IllegalArgumentException}.
-     */
-    @Test
-    @Disabled
-    public void testForSingleClass() {
-        InvocationInterceptor interceptor = (proxy, method, args) -> method.invoke(proxy, fooService, args);
-        Assertions.assertThrows(IllegalArgumentException.class, () -> {
-            Object o = NewProxy.newProxyInstance(FooService.class.getClassLoader(), interceptor, null, null, FooService.class, JustClass.class);
-            FooService foo = (FooService) o;
-            foo.foo();
-        }, "No Exception for Single Class");
-    }
-
-    /**
      * Case: try to generate a proxy interface with a null interface array, and
      * expect to throw an {@link IllegalArgumentException}.
      */
@@ -331,7 +314,6 @@ public class NewProxyTest {
      * Case: try to dump the dynamic proxy class via system properties.
      */
     @Test
-    @Disabled
     public void testForDumpDynamicProxyClassViaSystemProperties() {
         InvocationInterceptor interceptor = ((proxy, method, args) -> {
             if (logger.isLoggable(Level.INFO)) {

@@ -19,6 +19,7 @@ package io.github.lamspace.newproxy;
 import sun.reflect.CallerSensitive;
 
 import java.lang.reflect.Method;
+import java.util.Objects;
 
 /**
  * {@link MethodDecorator} decorates {@link Method} instance and provides a method similar to
@@ -33,12 +34,30 @@ import java.lang.reflect.Method;
 public final class MethodDecorator {
 
     /**
-     * real {@link Method} instance to be decorated
+     * actual {@link Method} instance to be decorated
      */
     private final Method method;
 
+    /**
+     * declaring class of {@link Method} instance
+     */
+    private final Class<?> declaringClass;
+
+    /**
+     * {@link Method} signature
+     */
+    private final String methodSignature;
+
+    /**
+     * {@link Method} hash code
+     */
+    private final int hashCode;
+
     private MethodDecorator(Method method) {
         this.method = method;
+        this.declaringClass = method.getDeclaringClass();
+        this.methodSignature = ProxyGenerator.getMethodSignature(this.method);
+        this.hashCode = Objects.hashCode(this.method);
     }
 
     /**
@@ -83,19 +102,31 @@ public final class MethodDecorator {
      * @param args   the arguments used for the method invocation
      * @return the result from which the method invocation returns.
      * @throws Throwable the exception to throw from the method invocation on the proxy instance,
-     *                   thrown by {@link InvocationDispatcher#dispatch(Object, Method, Object...)}.
-     * @see InvocationDispatcher#dispatch(Object, Method, Object...)
+     *                   thrown by {@link InvocationDispatcher#dispatch(Object, MethodDecorator, Object...)}.
+     * @see InvocationDispatcher#dispatch(Object, MethodDecorator, Object...)
      */
     @CallerSensitive
     public Object invoke(Object proxy, Object object, Object... args) throws Throwable {
         if (!(proxy instanceof InvocationDispatcher)) {
             throw new IllegalArgumentException("proxy must implement interface InvocationDispatcher");
         }
-        InvocationDispatcher dispatcher = ((InvocationDispatcher) proxy);
-        if (this.method.getDeclaringClass().isInterface()) {
-            return dispatcher.dispatch(object, this.method, args);
+        InvocationDispatcher dispatcher = (InvocationDispatcher) proxy;
+        if (this.declaringClass.isInterface()) {
+            return dispatcher.dispatch(object, this, args);
         }
-        return dispatcher.dispatch(proxy, this.method, args);
+        return dispatcher.dispatch(proxy, this, args);
+    }
+
+    public Class<?> getDeclaringClass() {
+        return declaringClass;
+    }
+
+    public String getMethodSignature() {
+        return methodSignature;
+    }
+
+    public int getHashCode() {
+        return hashCode;
     }
 
 }

@@ -254,6 +254,17 @@ public final class ProxyGenerator {
         }
         JavaClass javaClass = classGen.getJavaClass();
         // can debug javaClass object here
+        dumpJavaClass(javaClass, proxyClass);
+        return javaClass.getBytes();
+    }
+
+    /**
+     * Dumps generated java class into {@code .class} file in specified directory.
+     *
+     * @param javaClass  {@code JavaClass} instance to be dumped
+     * @param proxyClass the proxy class name
+     */
+    private static void dumpJavaClass(JavaClass javaClass, String proxyClass) {
         if (System.getProperty(STRING_DUMP_FLAG, "false").equalsIgnoreCase("true")) {
             String dir = System.getProperty(STRING_DUMP_DIR, STRING_DUMP_DIR_DEFAULT);
             try {
@@ -269,7 +280,6 @@ public final class ProxyGenerator {
                 throw new RuntimeException("exception when dumping class: " + proxyClass + ", message: " + e.getMessage());
             }
         }
-        return javaClass.getBytes();
     }
 
     /**
@@ -873,43 +883,37 @@ public final class ProxyGenerator {
 
                 if (returnType.equals(Type.VOID)) {
                     list.append(new ACONST_NULL());
-                    list.append(new ARETURN());
                 } else if (returnType.equals(Type.BOOLEAN)) {
                     list.append(factory.createInvoke(Boolean.class.getName(), METHOD_VALUE_OF, new ObjectType(Boolean.class.getName()), new Type[]{Type.BOOLEAN}, Const.INVOKESTATIC));
-                    list.append(new ARETURN());
                 } else if (returnType.equals(Type.BYTE)) {
                     list.append(factory.createInvoke(Byte.class.getName(), METHOD_VALUE_OF, new ObjectType(Byte.class.getName()), new Type[]{Type.BYTE}, Const.INVOKESTATIC));
-                    list.append(new ARETURN());
                 } else if (returnType.equals(Type.SHORT)) {
                     list.append(factory.createInvoke(Short.class.getName(), METHOD_VALUE_OF, new ObjectType(Short.class.getName()), new Type[]{Type.SHORT}, Const.INVOKESTATIC));
-                    list.append(new ARETURN());
                 } else if (returnType.equals(Type.CHAR)) {
                     list.append(factory.createInvoke(Character.class.getName(), METHOD_VALUE_OF, new ObjectType(Character.class.getName()), new Type[]{Type.CHAR}, Const.INVOKESTATIC));
-                    list.append(new ARETURN());
                 } else if (returnType.equals(Type.INT)) {
                     list.append(factory.createInvoke(Integer.class.getName(), METHOD_VALUE_OF, new ObjectType(Integer.class.getName()), new Type[]{Type.INT}, Const.INVOKESTATIC));
-                    list.append(new ARETURN());
                 } else if (returnType.equals(Type.LONG)) {
                     list.append(factory.createInvoke(Long.class.getName(), METHOD_VALUE_OF, new ObjectType(Long.class.getName()), new Type[]{Type.LONG}, Const.INVOKESTATIC));
-                    list.append(new ARETURN());
                 } else if (returnType.equals(Type.FLOAT)) {
                     list.append(factory.createInvoke(Float.class.getName(), METHOD_VALUE_OF, new ObjectType(Float.class.getName()), new Type[]{Type.FLOAT}, Const.INVOKESTATIC));
-                    list.append(new ARETURN());
                 } else if (returnType.equals(Type.DOUBLE)) {
                     list.append(factory.createInvoke(Double.class.getName(), METHOD_VALUE_OF, new ObjectType(Double.class.getName()), new Type[]{Type.DOUBLE}, Const.INVOKESTATIC));
-                    list.append(new ARETURN());
                 } else {
-                    list.append(new ARETURN());
+                    list.append(new CHECKCAST(constantPool.addClass(method.getReturnType().getName())));
                 }
+                list.append(new ARETURN());
 
                 list.setPositions();
                 entries[i + 2] = new StackMapEntry(cur.getPosition() - pre.getPosition() - 1, cur.getPosition() - pre.getPosition() - 1, new StackMapType[0], new StackMapType[0], constantPool.getConstantPool());
                 pre = cur;
+
                 generateDoInvokeMethod(classGen, constantPool, method);
             } else {
                 // method from class, which should be invoked by "super" directly
                 Parameter[] parameters = method.getParameters();
-                Type returnType = getTypeFromClass(method.getReturnType());
+                Class<?> returnClass = method.getReturnType();
+                Type returnType = getTypeFromClass(returnClass);
                 Type[] argsType = new Type[parameters.length];
                 for (int j = 0; j < argsType.length; j++) {
                     argsType[j] = getTypeFromClass(parameters[j].getType());
@@ -971,26 +975,26 @@ public final class ProxyGenerator {
                 }
 
                 // return value
-                if (method.getReturnType().equals(void.class)) {
+                if (returnClass.equals(void.class)) {
                     list.append(new ACONST_NULL());
-                } else if (method.getReturnType().equals(boolean.class)) {
-                    list.append(factory.createInvoke(Boolean.class.getName(), METHOD_VALUE_OF, Type.BOOLEAN, Type.NO_ARGS, Const.INVOKESTATIC));
-                } else if (method.getReturnType().equals(byte.class)) {
-                    list.append(factory.createInvoke(Byte.class.getName(), METHOD_VALUE_OF, Type.BYTE, Type.NO_ARGS, Const.INVOKESTATIC));
-                } else if (method.getReturnType().equals(short.class)) {
-                    list.append(factory.createInvoke(Short.class.getName(), METHOD_VALUE_OF, Type.SHORT, Type.NO_ARGS, Const.INVOKESTATIC));
-                } else if (method.getReturnType().equals(char.class)) {
-                    list.append(factory.createInvoke(Character.class.getName(), METHOD_VALUE_OF, Type.CHAR, Type.NO_ARGS, Const.INVOKESTATIC));
-                } else if (method.getReturnType().equals(int.class)) {
-                    list.append(factory.createInvoke(Integer.class.getName(), METHOD_VALUE_OF, Type.INT, Type.NO_ARGS, Const.INVOKESTATIC));
-                } else if (method.getReturnType().equals(long.class)) {
-                    list.append(factory.createInvoke(Long.class.getName(), METHOD_VALUE_OF, Type.LONG, Type.NO_ARGS, Const.INVOKESTATIC));
-                } else if (method.getReturnType().equals(float.class)) {
-                    list.append(factory.createInvoke(Float.class.getName(), METHOD_VALUE_OF, Type.FLOAT, Type.NO_ARGS, Const.INVOKESTATIC));
-                } else if (method.getReturnType().equals(double.class)) {
-                    list.append(factory.createInvoke(Double.class.getName(), METHOD_VALUE_OF, Type.DOUBLE, Type.NO_ARGS, Const.INVOKESTATIC));
+                } else if (returnClass.equals(boolean.class)) {
+                    list.append(factory.createInvoke(Boolean.class.getName(), METHOD_VALUE_OF, new ObjectType(Boolean.class.getName()), new Type[]{Type.BOOLEAN}, Const.INVOKESTATIC));
+                } else if (returnClass.equals(byte.class)) {
+                    list.append(factory.createInvoke(Byte.class.getName(), METHOD_VALUE_OF, new ObjectType(Byte.class.getName()), new Type[]{Type.BYTE}, Const.INVOKESTATIC));
+                } else if (returnClass.equals(short.class)) {
+                    list.append(factory.createInvoke(Short.class.getName(), METHOD_VALUE_OF, new ObjectType(Short.class.getName()), new Type[]{Type.SHORT}, Const.INVOKESTATIC));
+                } else if (returnClass.equals(char.class)) {
+                    list.append(factory.createInvoke(Character.class.getName(), METHOD_VALUE_OF, new ObjectType(Character.class.getName()), new Type[]{Type.CHAR}, Const.INVOKESTATIC));
+                } else if (returnClass.equals(int.class)) {
+                    list.append(factory.createInvoke(Integer.class.getName(), METHOD_VALUE_OF, new ObjectType(Integer.class.getName()), new Type[]{Type.INT}, Const.INVOKESTATIC));
+                } else if (returnClass.equals(long.class)) {
+                    list.append(factory.createInvoke(Long.class.getName(), METHOD_VALUE_OF, new ObjectType(Long.class.getName()), new Type[]{Type.LONG}, Const.INVOKESTATIC));
+                } else if (returnClass.equals(float.class)) {
+                    list.append(factory.createInvoke(Float.class.getName(), METHOD_VALUE_OF, new ObjectType(Float.class.getName()), new Type[]{Type.FLOAT}, Const.INVOKESTATIC));
+                } else if (returnClass.equals(double.class)) {
+                    list.append(factory.createInvoke(Double.class.getName(), METHOD_VALUE_OF, new ObjectType(Double.class.getName()), new Type[]{Type.DOUBLE}, Const.INVOKESTATIC));
                 } else {
-                    list.append(new CHECKCAST(constantPool.addClass(method.getReturnType().getName())));
+                    list.append(new CHECKCAST(constantPool.addClass(returnClass.getName())));
                 }
                 list.append(new ARETURN());
 

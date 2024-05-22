@@ -240,6 +240,7 @@ import java.util.function.BiFunction;
  *     private static final MethodDecorator m2;
  *     private static final MethodDecorator m3;
  *     private final InvocationInterceptor interceptor;
+ *     private volatile MethodHandle mhFoo;
  *
  *     static {
  *         try {
@@ -288,15 +289,15 @@ import java.util.function.BiFunction;
  *         }
  *     }
  *
- *     public final Object dispatch(Object object, Method method, Object[] args) {
- *         String var4 = ProxyGenerator.getMethodSignature(method);
- *         if ("equals;boolean;[java.lang.Object arg0]".equals(var4)) {
+ *     public final Object dispatch(Object object, MethodDecorator method, Object[] args) throws Throwable {
+ *         int var4 = method.getHashCode();
+ *         if (-1918826964 == var4) {
  *             return super.equals(args[0]);
- *         } else if ("hashCode;int;[]".equals(var4)) {
+ *         } else if (933549448 == var4) {
  *             return super.hashCode();
- *         } else if ("toString;class java.lang.String;[]".equals(var4)) {
+ *         } else if (-1451283457 == var4) {
  *             return super.toString();
- *         } else if ("foo;void;[]".equals(var4)) {
+ *         } else if (-199555930 == var4) {
  *             this.doInvokeFoo(object);
  *             return null;
  *         }
@@ -304,8 +305,14 @@ import java.util.function.BiFunction;
  *     }
  *
  *     private void doInvokeFoo(Object object) {
- *         MethodHandle var3 = MethodHandles.lookup().findVirtual(Foo.class, "foo", MethodType.methodType(Void.TYPE)).bindTo(object);
- *         var3.invokeExact();
+ *         if (this.mhFoo == null) {
+ *             synchronized(this) {
+ *                 if (this.mhFoo == null) {
+ *                     this.mhFoo = MethodHandles.lookup().findVirtual(FooService.class, "foo", MethodType.methodType(Void.TYPE)).bindTo(object);
+ *                 }
+ *             }
+ *         }
+ *         this.mhFoo.invokeExact();
  *     }
  *
  * }
@@ -374,15 +381,16 @@ import java.util.function.BiFunction;
  *         }
  *     }
  *
- *     public final Object dispatch(Object object, Method method, Object[] args) throws Throwable {
- *         String var4 = ProxyGenerator.getMethodSignature(method);
- *         if ("equals;boolean;[java.lang.Object arg0]".equals(var4)) {
+ *     public final Object dispatch(Object object, MethodDecorator method, Object[] args) throws Throwable {
+ *         int var4 = method.getHashCode();
+ *         int var4 = method.getHashCode();
+ *         if (-1918826964 == var4) {
  *             return super.equals(args[0]);
- *         } else if ("hashCode;int;[]".equals(var4)) {
+ *         } else if (933549448 == var4) {
  *             return super.hashCode();
- *         } else if ("toString;class java.lang.String;[]".equals(var4)) {
+ *         } else if (-1451283457 == var4) {
  *             return super.toString();
- *         } else if ("bar;void;[]".equals(var4)) {
+ *         } else if (199555933 == var4) {
  *             super.bar();
  *             return null;
  *         }
@@ -460,15 +468,15 @@ import java.util.function.BiFunction;
  *         }
  *     }
  *
- *     public final Object dispatch(Object object, Method method, Object[] args) throws Throwable {
- *         String var4 = ProxyGenerator.getMethodSignature(method);
- *         if ("equals;boolean;[java.lang.Object arg0]".equals(var4)) {
+ *     public final Object dispatch(Object object, MethodDecorator method, Object[] args) throws Throwable {
+ *         int var4 = method.getHashCode();
+ *         if (-1918826964 == var4) {
  *             return super.equals(args[0]);
- *         } else if ("hashCode;int;[]".equals(var4)) {
+ *         } else if (933549448 == var4) {
  *             return super.hashCode();
- *         } else if ("toString;class java.lang.String;[]".equals(var4)) {
+ *         } else if (-1451283457 == var4) {
  *             return super.toString();
- *         } else if ("bar;void;[]".equals(var4)) {
+ *         } else if (199555933 == var4) {
  *             super.bar();
  *             return null;
  *         }

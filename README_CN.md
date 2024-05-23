@@ -14,6 +14,15 @@
 
 ## NewProxy 是什么?
 
+> **NewProxy** 是 **Proxy** 的扩展, 与 **CGLIB** 相似. 但是它尽可能与 **CGLIB** 一样快, 甚至比 **CGLIB** 更快,
+> 比 **CGLIB** 更简单, 比 **CGLIB** 更小.
+
+详情见 [GitHub](https://github.com/LamSpace/newproxy-samples) 或者 [Gitee](https://gitee.com/LamTong/newproxy-samples).
+
+---
+
+## NewProxy 能做什么?
+
 **NewProxy** 是一个可以为接口和类生成动态代理类的工具.
 
 **NewProxy** 沿用 **JDK** 内置的 **Proxy** 类思想来生成动态代理类, 为目标接口和类生成代理类, 调用其方法, 并将结果返回给调用者.

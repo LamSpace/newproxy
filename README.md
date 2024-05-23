@@ -12,6 +12,15 @@
 
 ---
 
+## What is it?
+
+> **NewProxy** is an extension of **Proxy**, It is similar to **CGLIB**.
+> But it is as fast as **CGLIB** as possible, even faster, simpler and smaller than **CGLIB**.
+
+More details see [GitHub](https://github.com/LamSpace/newproxy-samples) or [Gitee](https://gitee.com/LamTong/newproxy-samples).
+
+---
+
 ## What does it do?
 
 **NewProxy** is a tool to generate **dynamic proxy** for interfaces, and class also.

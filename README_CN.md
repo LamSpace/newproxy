@@ -159,8 +159,7 @@ public static void main(String[] args) {
 
 ## 底层支持
 
-**NewProxy** 建立在 **Byte Code Engineering Library** (简称为 **BCEL**) 之上. **NewProxy** 不导入任何关于 **BCEL**
-的第三方库, 而是直接使用 JDK 内置的 **BCEL** 支持. 关于**BCEL** 的更多细节, 可以参考
+**NewProxy** 建立在 **Byte Code Engineering Library** (简称为 **BCEL**) 之上. 关于 **BCEL** 的更多细节, 可以参考
 [BCEL](https://commons.apache.org/proper/commons-bcel/) 官方网站.
 
 ---

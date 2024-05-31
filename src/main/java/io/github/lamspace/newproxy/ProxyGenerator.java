@@ -16,10 +16,9 @@
 
 package io.github.lamspace.newproxy;
 
-import com.sun.org.apache.bcel.internal.Const;
-import com.sun.org.apache.bcel.internal.classfile.*;
-import com.sun.org.apache.bcel.internal.generic.*;
-import com.sun.xml.internal.ws.util.StringUtils;
+import org.apache.bcel.Const;
+import org.apache.bcel.classfile.*;
+import org.apache.bcel.generic.*;
 
 import java.io.File;
 import java.io.IOException;
@@ -1023,7 +1022,7 @@ public final class ProxyGenerator {
         methodGen.setMaxLocals();
         methodGen.setMaxStack();
 
-        com.sun.org.apache.bcel.internal.classfile.Method method = methodGen.getMethod();
+        org.apache.bcel.classfile.Method method = methodGen.getMethod();
         classGen.addMethod(method);
         list.dispose();
     }

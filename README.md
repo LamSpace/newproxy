@@ -17,7 +17,8 @@
 > **NewProxy** is an extension of **Proxy**, It is similar to **CGLIB**.
 > But it is as fast as **CGLIB** as possible, even faster, simpler and smaller than **CGLIB**.
 
-More details see [GitHub](https://github.com/LamSpace/newproxy-samples) or [Gitee](https://gitee.com/LamTong/newproxy-samples).
+More details see [GitHub](https://github.com/LamSpace/newproxy-samples)
+or [Gitee](https://gitee.com/LamTong/newproxy-samples).
 
 ---
 
@@ -163,7 +164,6 @@ public static void main(String[] args) {
 
 **NewProxy** is built on top of the **Byte Code Engineering Library**
 (simply called [BCEL](https://commons.apache.org/proper/commons-bcel/)).
-Instead, **NewProxy** does not import any third-party libraries about **BCEL** since JDK has built-in **BCEL** support.
 More details can be found in the [BCEL](https://commons.apache.org/proper/commons-bcel/) official website.
 
 ---

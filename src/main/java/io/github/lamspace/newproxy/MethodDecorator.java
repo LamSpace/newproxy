@@ -80,6 +80,33 @@ public final class MethodDecorator {
     }
 
     /**
+     * Gets declaring class of this {@link Method} instance.
+     *
+     * @return the declaring class of the method
+     */
+    public Class<?> getDeclaringClass() {
+        return declaringClass;
+    }
+
+    /**
+     * Gets signature of the {@link Method} instance.
+     *
+     * @return signature of the method
+     */
+    public String getMethodSignature() {
+        return methodSignature;
+    }
+
+    /**
+     * Gets the hash code of the method instance.
+     *
+     * @return hash code of the method
+     */
+    public int getHashCode() {
+        return hashCode;
+    }
+
+    /**
      * Invokes the underlying method represented by this {@link MethodDecorator} object, on the specified object with
      * the specified parameters. Individual parameters are automatically unwrapped to match primitive formal parameters,
      * and both primitive and reference parameters are subject to method invocation conversions as necessary.<br/>
@@ -115,18 +142,6 @@ public final class MethodDecorator {
             return dispatcher.dispatch(object, this, args);
         }
         return dispatcher.dispatch(proxy, this, args);
-    }
-
-    public Class<?> getDeclaringClass() {
-        return declaringClass;
-    }
-
-    public String getMethodSignature() {
-        return methodSignature;
-    }
-
-    public int getHashCode() {
-        return hashCode;
     }
 
 }
